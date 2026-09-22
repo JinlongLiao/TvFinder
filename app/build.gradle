@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.jnlongliao.tv.finder'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.jnlongliao.tv.finder'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    // 应用内可离线切换中英文，打包时始终携带全部语言资源。
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDir(layout.buildDirectory.dir('generated/documentAssets'))
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+// 应用内关于页与仓库文档共用同一份许可和版本说明，避免两处更新漂移。
+tasks.register('syncApplicationDocuments', Sync) {
+    from(rootProject.projectDir) {
+        include 'LICENSE', 'NOTICE', 'docs/**'
+    }
+    into(layout.buildDirectory.dir('generated/documentAssets'))
+}
+tasks.named('preBuild').configure {
+    dependsOn('syncApplicationDocuments')
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+    testImplementation 'junit:junit:4.13.2'
+}

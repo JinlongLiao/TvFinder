@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="512" height="512" role="img" aria-labelledby="title description">
+    <title id="title">TV Finder 应用标志</title>
+    <desc id="description">深蓝色圆角底上的白色电视轮廓与柔和蓝色文件夹，原创几何矢量图形。</desc>
+    <path d="M28,0H100Q128,0 128,28V100Q128,128 100,128H28Q0,128 0,100V28Q0,0 28,0Z" fill="#101722"/>
+    <path d="M36,28H92Q104,28 104,40V76Q104,88 92,88H36Q24,88 24,76V40Q24,28 36,28Z" fill="none" stroke="#F4F7FB" stroke-width="6"/>
+    <path d="M43,44H54L61,51H85Q90,51 90,56V70Q90,75 85,75H43Q38,75 38,70V49Q38,44 43,44Z" fill="#70B7FF"/>
+    <path d="M52,100H76" fill="none" stroke="#F4F7FB" stroke-width="6" stroke-linecap="round"/>
+</svg>

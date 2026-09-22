@@ -1,0 +1,13 @@
+TV Finder
+Copyright 2026 liaojinlong
+
+Project: https://github.com/JinlongLiao/TvFinder
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product includes AndroidX, Kotlin, Kotlin coroutines, JetBrains
+annotations and Google Guava ListenableFuture components.
+Third-party copyrights and license notices are documented in
+docs/Third-party-notices.md and docs/licenses/.
+
+The application icons are original vector artwork created for this project.
+The project is not affiliated with Hisense or ES File Explorer.

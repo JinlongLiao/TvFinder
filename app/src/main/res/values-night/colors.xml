@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色主题保留原有海军蓝工作区，文本与焦点在暗处保持可辨识。 -->
+    <color name="page_background">#101722</color>
+    <color name="surface_background">#1C2838</color>
+    <color name="text_primary">#F4F7FB</color>
+    <color name="text_secondary">#A9B8CA</color>
+    <color name="accent">#70B7FF</color>
+    <color name="focus_background">#243E5B</color>
+    <color name="surface_border">#344456</color>
+    <color name="destructive">#F3949A</color>
+    <color name="icon_document">#80B7F5</color>
+    <color name="icon_image">#7BC5DE</color>
+    <color name="icon_archive">#D8B27D</color>
+    <color name="icon_spreadsheet">#79CDB1</color>
+    <color name="icon_book">#CBA47C</color>
+    <color name="icon_disk">#99BACB</color>
+    <color name="icon_presentation">#ECA17D</color>
+    <color name="icon_subtitle">#B3BBE1</color>
+    <color name="icon_code">#8CBACD</color>
+    <color name="icon_package">#D3A7F6</color>
+    <color name="icon_audio">#C49AF0</color>
+    <color name="icon_text">#ACC0D5</color>
+    <color name="icon_pdf">#F3949A</color>
+</resources>

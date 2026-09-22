@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 10 以上关闭系统自动反色，由本应用的两套主题资源控制外观。 -->
+    <style name="AppTheme" parent="AppThemeBase">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+    <style name="TvDialogTheme" parent="TvDialogThemeBase">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

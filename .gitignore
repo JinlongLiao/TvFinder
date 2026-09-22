@@ -1,0 +1,11 @@
+.gradle/
+.build-cache/
+**/build/
+local.properties
+.idea/
+*.iml
+.runtime/
+/.codegraph/
+/%SystemDrive%/
+/*/*.apk
+*.apk

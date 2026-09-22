@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主体内缩到 108 单位画布的中心安全区，避免圆形及圆角遮罩裁切电视与底座。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.62"
+        android:scaleY="0.62"
+        android:translateX="14.32"
+        android:translateY="14.32">
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#F4F7FB"
+            android:strokeWidth="6"
+            android:pathData="M36,28H92Q104,28 104,40V76Q104,88 92,88H36Q24,88 24,76V40Q24,28 36,28Z" />
+        <path
+            android:fillColor="#70B7FF"
+            android:pathData="M43,44H54L61,51H85Q90,51 90,56V70Q90,75 85,75H43Q38,75 38,70V49Q38,44 43,44Z" />
+        <path
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#F4F7FB"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:pathData="M52,100H76" />
+    </group>
+</vector>

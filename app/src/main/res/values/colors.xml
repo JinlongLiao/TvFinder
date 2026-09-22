@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 浅色主题：近白工作区、深色文字与蓝色遥控器焦点。 -->
+    <color name="page_background">#F3F5F8</color>
+    <color name="surface_background">#FFFFFF</color>
+    <color name="text_primary">#172536</color>
+    <color name="text_secondary">#526277</color>
+    <color name="accent">#0964C6</color>
+    <color name="focus_background">#DFEDFF</color>
+    <color name="surface_border">#CBD5E1</color>
+    <color name="destructive">#B42332</color>
+    <color name="icon_document">#2563A6</color>
+    <color name="icon_image">#18738F</color>
+    <color name="icon_archive">#916021</color>
+    <color name="icon_spreadsheet">#197553</color>
+    <color name="icon_book">#895B2D</color>
+    <color name="icon_disk">#526D7D</color>
+    <color name="icon_presentation">#AF512A</color>
+    <color name="icon_subtitle">#5A619A</color>
+    <color name="icon_code">#326A80</color>
+    <color name="icon_package">#854DB1</color>
+    <color name="icon_audio">#7844A8</color>
+    <color name="icon_text">#526A82</color>
+    <color name="icon_pdf">#B42332</color>
+</resources>

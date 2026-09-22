@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 原创应用标志：电视轮廓承载文件夹，用于不裁切的应用内展示。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    <path
+        android:fillColor="#101722"
+        android:pathData="M28,0H100Q128,0 128,28V100Q128,128 100,128H28Q0,128 0,100V28Q0,0 28,0Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#F4F7FB"
+        android:strokeWidth="6"
+        android:pathData="M36,28H92Q104,28 104,40V76Q104,88 92,88H36Q24,88 24,76V40Q24,28 36,28Z" />
+    <path
+        android:fillColor="#70B7FF"
+        android:pathData="M43,44H54L61,51H85Q90,51 90,56V70Q90,75 85,75H43Q38,75 38,70V49Q38,44 43,44Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#F4F7FB"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M52,100H76" />
+</vector>
