@@ -1,7 +1,6 @@
 package io.github.jnlongliao.tv.finder;
 
 import android.content.Context;
-import android.os.Build;
 import android.os.Environment;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
@@ -11,7 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 通过系统卷 API 发现存储，旧系统辅以 /storage 的可读挂载目录。
+ * 通过 Android 11+ 系统卷 API 发现存储，同时补充 /storage 中厂商公开的可读挂载目录。
  * 只发现路径，不绕过文件系统权限；厂商未公开的 USB 挂载可能无法识别。
  * @see <a href="https://developer.android.com/reference/android/os/storage/StorageVolume">StorageVolume</a>
  */
@@ -29,7 +28,7 @@ public final class StorageRepository {
         List<StorageLocation> locations = new ArrayList<>();
         addStorageLocation(locations, context.getString(R.string.internal_storage), Environment.getExternalStorageDirectory());
         StorageManager storageManager = context.getSystemService(StorageManager.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Objects.nonNull(storageManager)) {
+        if (Objects.nonNull(storageManager)) {
             for (StorageVolume volume : storageManager.getStorageVolumes()) {
                 File directory = volume.getDirectory();
                 if (Objects.nonNull(directory) && !volume.isPrimary()) {
@@ -39,6 +38,7 @@ public final class StorageRepository {
         }
         File[] mounted = new File("/storage").listFiles();
         if (Objects.nonNull(mounted)) {
+            assert mounted != null;
             for (File directory : mounted) {
                 String name = directory.getName();
                 if (directory.isDirectory() && directory.canRead()

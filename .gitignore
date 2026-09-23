@@ -9,3 +9,4 @@ local.properties
 /%SystemDrive%/
 /*/*.apk
 *.apk
+/app/${user.home}/

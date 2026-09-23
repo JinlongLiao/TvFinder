@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId 'io.github.jnlongliao.tv.finder'
-        minSdk 26
+        minSdk 30
         targetSdk 34
         versionCode 1
         versionName '0.1.0'
@@ -34,9 +34,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
+    buildToolsVersion '29.0.2'
+    ndkVersion '29.0.14206865'
 }
 
 // 应用内关于页与仓库文档共用同一份许可和版本说明，避免两处更新漂移。
@@ -53,5 +55,5 @@ tasks.named('preBuild').configure {
 dependencies {
     implementation 'androidx.core:core:1.13.1'
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.robolectric:robolectric:4.13'
+    testImplementation 'org.robolectric:robolectric:4.17'
 }

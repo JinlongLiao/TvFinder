@@ -38,10 +38,11 @@ Open **Appearance → Theme** for **Light, Dark, or System default**. Light is t
 
 ## File safety and limitations
 
-- Requires Android 8.0 / API 26 or later. Android 11+ uses all-files access; older versions request storage read/write permissions.
+- Requires Android 11 / API 30 or later and uses the system all-files access permission.
 - Internal storage means shared user storage. System data and other apps private directories are not generally accessible.
 - Reported capacity comes from the mounted filesystem. It is not the advertised flash capacity, and used space is not a promise of reclaimable space.
 - USB discovery uses system storage volumes and readable `/storage` mount points. Hidden vendor mounts, missing permission settings, or read-only NTFS/exFAT drivers require device-specific verification.
+- The app still opens on the storage home screen. **System root** in the sidebar opens `/`, and large focusable breadcrumbs jump directly to any ancestor. This entry cannot bypass Android, SELinux, or read-only mount restrictions.
 - Existing targets are never silently overwritten or merged. Rename rejects blank names, path traversal, separators, and reserved characters.
 - Failed or cancelled copies attempt to remove the destination created by that operation. Cleanup failure reports the path. Power loss, process termination, or unplugging a drive may leave partial data.
 - Move means **copy all data → verify contents → delete source**. It requires destination space and additional reads. Source deletion cannot be cancelled or rolled back; failure may leave a complete destination and a partially deleted source.

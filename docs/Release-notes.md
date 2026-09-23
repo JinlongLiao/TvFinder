@@ -12,6 +12,7 @@ Author: liaojinlong. Project: https://github.com/JinlongLiao/TvFinder
 - Light, Dark, and System default themes; Light by default, persistent selection, and folder/clipboard restoration.
 - Chinese/English UI, in-app language choice, device information, About, offline release notes, and license notices.
 - Icons for packages, Office documents, PDF, text, audio/video, images, archives, code, subtitles, e-books, and disk images.
+- The storage home remains the default; the sidebar can open system root `/`, and large focusable breadcrumbs jump directly to any ancestor directory.
 
 ### File protection
 
@@ -22,7 +23,7 @@ Author: liaojinlong. Project: https://github.com/JinlongLiao/TvFinder
 
 ### Compatibility and limitations
 
-- Android 8.0 / API 26 minimum; application ID io.github.jnlongliao.tv.finder.
+- Android 11 / API 30 minimum; application ID io.github.jnlongliao.tv.finder.
 - The preview APK uses debug signing and is not an app-store production release.
 - Hisense E5Q hardware, USB drivers, NTFS/exFAT writing, and power-loss behavior require validation.
 - It does not automatically become the system default file manager. System-entry takeover, NAS/SMB, recycle bin, media player, and APK installer are not included.

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- USB 挂载也位于 /storage；只由用户选择的文件获得临时只读授权。 -->
-    <root-path name="storage" path="storage/" />
+    <!-- 支持用户从系统根目录选择可读文件；只有明确打开的单个文件获得临时只读授权。 -->
+    <root-path name="system_root" path="." />
 </paths>

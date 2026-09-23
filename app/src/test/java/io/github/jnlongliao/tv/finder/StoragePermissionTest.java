@@ -11,6 +11,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.provider.Settings;
+import android.view.View;
+import android.widget.Button;
+import java.util.ArrayList;
 import org.junit.Test;
 import org.junit.Before;
 import org.junit.runner.RunWith;
@@ -80,6 +83,46 @@ public final class StoragePermissionTest {
                 RuntimeEnvironment.getApplication().getPackageName(), AppOpsManager.MODE_ALLOWED);
         try (ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class).setup()) {
             assertNull(ShadowAlertDialog.getLatestAlertDialog());
+        }
+    }
+
+    /** 默认仍显示存储首页，但侧栏可以显式进入系统根并生成可点击的根面包屑。 */
+    @Test
+    public void systemRootNavigationOpensRootBreadcrumb() {
+        try (ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class).setup()) {
+            ArrayList<View> rootEntries = new ArrayList<>();
+            controller.get().getWindow().getDecorView().findViewsWithText(rootEntries,
+                    controller.get().getString(R.string.system_root), View.FIND_VIEWS_WITH_TEXT);
+            assertEquals(1, rootEntries.size());
+            assertTrue(rootEntries.get(0) instanceof Button);
+            rootEntries.get(0).performClick();
+
+            ArrayList<View> rootBreadcrumbs = new ArrayList<>();
+            controller.get().getWindow().getDecorView().findViewsWithText(rootBreadcrumbs, "/", View.FIND_VIEWS_WITH_TEXT);
+            assertTrue(rootBreadcrumbs.stream().anyMatch(view -> view instanceof Button));
+        }
+    }
+
+    /** 终端必须提供独立页面和明确退出按钮，退出后返回默认存储首页。 */
+    @Test
+    public void terminalExitReturnsToStorageHome() {
+        try (ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class).setup()) {
+            ArrayList<View> terminalEntries = new ArrayList<>();
+            controller.get().getWindow().getDecorView().findViewsWithText(terminalEntries,
+                    controller.get().getString(R.string.terminal), View.FIND_VIEWS_WITH_TEXT);
+            assertTrue(terminalEntries.stream().anyMatch(view -> view instanceof Button));
+            terminalEntries.stream().filter(view -> view instanceof Button).findFirst().orElseThrow().performClick();
+
+            ArrayList<View> exitButtons = new ArrayList<>();
+            controller.get().getWindow().getDecorView().findViewsWithText(exitButtons,
+                    controller.get().getString(R.string.terminal_exit), View.FIND_VIEWS_WITH_TEXT);
+            assertEquals(1, exitButtons.size());
+            exitButtons.get(0).performClick();
+
+            ArrayList<View> storageTitles = new ArrayList<>();
+            controller.get().getWindow().getDecorView().findViewsWithText(storageTitles,
+                    controller.get().getString(R.string.storage_home), View.FIND_VIEWS_WITH_TEXT);
+            assertTrue(storageTitles.size() >= 2);
         }
     }
 
