@@ -3,6 +3,16 @@
     <!-- 界面文案及错误说明；位置占位符在中英文资源中必须保持一致。 -->
     <string name="app_name">TV Finder</string>
     <string name="storage_home">Storage</string>
+    <string name="usb_device">USB device</string>
+    <string name="usb_direct_access">Open this drive directly in TV Finder · USB permission required</string>
+    <string name="usb_connecting">Connecting to USB storage…</string>
+    <string name="usb_permission_denied">USB access was denied</string>
+    <string name="usb_not_found">No compatible USB mass-storage device found</string>
+    <string name="usb_import">Import from TV</string>
+    <string name="usb_export">Export to TV</string>
+    <string name="usb_folder_hint">OK: open folder or actions    Back: parent folder</string>
+    <string name="usb_select_name">Name</string>
+    <string name="usb_incomplete">Operation incomplete. Refresh and inspect both locations.</string>
     <string name="storage_tagline">Your files, organized.    /    Local storage &amp; USB</string>
     <string name="permission_granted">Storage access enabled</string>
     <string name="permission_request">Allow file access</string>

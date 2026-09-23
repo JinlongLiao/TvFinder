@@ -16,6 +16,8 @@ import android.provider.Settings;
 import android.text.InputType;
 import android.text.format.Formatter;
 import android.graphics.Typeface;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
@@ -35,7 +37,9 @@ import android.widget.TextView;
 import android.widget.ImageView;
 import android.content.res.ColorStateList;
 import android.widget.Toast;
+
 import androidx.core.content.FileProvider;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,72 +62,123 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 电视文件管理入口：方向键导航、确定打开、菜单或长按显示操作。
  * UI 状态仅主线程持有，磁盘扫描及写操作由单一有界工作线程串行执行。
  * 写操作期间禁止启动第二项任务或切换目录；离开页面请求取消，移动删除阶段除外。
+ *
  * @see <a href="https://developer.android.com/training/tv/get-started/navigation">TV navigation</a>
  * @see <a href="https://developer.android.com/training/data-storage/manage-all-files">All files access</a>
  */
 public final class MainActivity extends Activity {
-    /** Android 日志标签，失败时包含动作、路径、异常 message 和完整堆栈。 */
+    /** 应用内部导入模式：用户从电视共享存储选择一个普通文件后返回路径。 */
+    public static final String EXTRA_PICK_INTERNAL_FILE = "io.github.jnlongliao.tv.finder.PICK_INTERNAL_FILE";
+    /** 导入模式返回的已校验文件绝对路径。 */
+    public static final String EXTRA_PICKED_FILE_PATH = "io.github.jnlongliao.tv.finder.PICKED_FILE_PATH";
+    /**
+     * Android 日志标签，失败时包含动作、路径、异常 message 和完整堆栈。
+     */
     private static final String LOG_TAG = "TvFinder";
-    /** 用户显式选择“系统根目录”时采用的 Linux 文件系统浏览边界。 */
+    /**
+     * 用户显式选择“系统根目录”时采用的 Linux 文件系统浏览边界。
+     */
     private static final File SYSTEM_ROOT_DIRECTORY = new File("/");
     /**
      * Android 固件可能允许访问具体路径，却禁止普通应用枚举根目录；这些标准顶层路径用于兼容展示。
      * 列表只提供入口，后续读取仍由系统文件权限决定，不会把不存在或不可识别为目录的路径显示出来。
      */
     private static final String[] SYSTEM_ROOT_FALLBACK_PATHS = {
-            "/apex", "/bootstrap-apex", "/config", "/cust", "/data", "/debug_ramdisk", "/dev",
-            "/linkerconfig", "/metadata", "/mi_ext", "/mnt", "/odm", "/odm_dlkm", "/oem",
-            "/opconfig", "/opcust", "/postinstall", "/proc", "/product", "/sdcard", "/storage",
-            "/sys", "/system", "/system_dlkm", "/system_ext", "/tmp", "/vendor", "/vendor_dlkm"
+        "/apex", "/bootstrap-apex", "/config", "/cust", "/data", "/debug_ramdisk", "/dev",
+        "/linkerconfig", "/metadata", "/mi_ext", "/mnt", "/odm", "/odm_dlkm", "/oem",
+        "/opconfig", "/opcust", "/postinstall", "/proc", "/product", "/sdcard", "/storage",
+        "/sys", "/system", "/system_dlkm", "/system_ext", "/tmp", "/vendor", "/vendor_dlkm"
     };
-    /** 单条终端命令最长执行时间，防止交互式或阻塞命令永久占用文件工作线程。 */
+    /**
+     * 单条终端命令最长执行时间，防止交互式或阻塞命令永久占用文件工作线程。
+     */
     private static final long SHELL_COMMAND_TIMEOUT_SECONDS = 15;
-    /** 单条命令最多展示的输出字节数，避免异常输出耗尽电视内存。 */
+    /**
+     * 单条命令最多展示的输出字节数，避免异常输出耗尽电视内存。
+     */
     private static final int SHELL_OUTPUT_LIMIT_BYTES = 64 * 1024;
-    /** 单一 I/O 工作线程及最多一个候选任务，避免快速按键造成无限排队。 */
+    /**
+     * 单一 I/O 工作线程及最多一个候选任务，避免快速按键造成无限排队。
+     */
     private final ThreadPoolExecutor fileExecutor = new ThreadPoolExecutor(1, 1, 0,
-            TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1), runnable -> new Thread(runnable, "tv-file-io"));
-    /** 本次文件操作取消信号，在工作线程检查安全点时生效。 */
+        TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1), runnable -> new Thread(runnable, "tv-file-io"));
+    /**
+     * 本次文件操作取消信号，在工作线程检查安全点时生效。
+     */
     private final AtomicBoolean cancellationRequested = new AtomicBoolean();
-    /** 页面纵向容器，每次目录切换重建子视图。 */
+    /**
+     * 页面纵向容器，每次目录切换重建子视图。
+     */
     private LinearLayout pageLayout;
-    /** 当前目录列表，首页及加载中可以为空。 */
+    /**
+     * 当前目录列表，首页及加载中可以为空。
+     */
     private GridView fileGridView;
-    /** 当前文件列表快照，与列表适配器同时更新。 */
+    /**
+     * 当前文件列表快照，与列表适配器同时更新。
+     */
     private List<File> visibleFiles = new ArrayList<>();
-    /** 当前目录最后明确选中的文件；工具栏取得焦点后仍用于“操作”，切换页面即清空。 */
+    /**
+     * 当前目录最后明确选中的文件；工具栏取得焦点后仍用于“操作”，切换页面即清空。
+     */
     private File selectedFile;
-    /** 当前存储卷根；不允许通过导航进入根之外或对根执行破坏性操作。 */
+    /**
+     * 当前存储卷根；不允许通过导航进入根之外或对根执行破坏性操作。
+     */
     private File storageRoot;
-    /** 当前目录；为空表示磁盘首页。 */
+    /**
+     * 当前目录；为空表示磁盘首页。
+     */
     private File currentDirectory;
-    /** 用户选择复制或移动的源；粘贴成功后清空。 */
+    /**
+     * 用户选择复制或移动的源；粘贴成功后清空。
+     */
     private File clipboardFile;
-    /** true 表示移动，false 表示复制，仅在剪贴板非空时有意义。 */
+    /**
+     * true 表示移动，false 表示复制，仅在剪贴板非空时有意义。
+     */
     private boolean clipboardMove;
-    /** 主线程任务门闩，包含目录加载和写操作；防止重复触发。 */
+    /**
+     * 主线程任务门闩，包含目录加载和写操作；防止重复触发。
+     */
     private boolean busy;
-    /** 写操作进度文本；工作线程只能通过主线程回调更新。 */
+    /**
+     * 写操作进度文本；工作线程只能通过主线程回调更新。
+     */
     private TextView operationProgress;
-    /** 当前写操作对话框；禁用隐式关闭以保持任务可见。 */
+    /**
+     * 当前写操作对话框；禁用隐式关闭以保持任务可见。
+     */
     private AlertDialog operationDialog;
-    /** 进度节流的单调时钟毫秒，只由工作线程访问。 */
+    /**
+     * 进度节流的单调时钟毫秒，只由工作线程访问。
+     */
     private long lastProgressTime;
 
-    /** 当前已绘制的夜间标志，仅主线程使用，避免重复重建。 */
+    /**
+     * 当前已绘制的夜间标志，仅主线程使用，避免重复重建。
+     */
     private int appliedNightMode;
-    /** 系统主题变化等待文件任务结束后生效，不能为外观改变中断复制或移动。 */
+    /**
+     * 系统主题变化等待文件任务结束后生效，不能为外观改变中断复制或移动。
+     */
     private boolean themeChangePending;
-    /** 当前是否显示终端页面，仅用于侧栏选中状态与退出后的首页恢复。 */
+    /**
+     * 当前是否显示终端页面，仅用于侧栏选中状态与退出后的首页恢复。
+     */
     private boolean terminalVisible;
 
-    /** {@inheritDoc} 语言和主题在创建界面之前生效，不更改电视系统设置。 */
+    /**
+     * {@inheritDoc} 语言和主题在创建界面之前生效，不更改电视系统设置。
+     */
     @Override
     protected void attachBaseContext(Context context) {
         super.attachBaseContext(AppAppearance.applyThemeContext(AppLanguage.localizeAppContext(context)));
     }
 
-    /** {@inheritDoc} 建立电视布局后检查首次授权引导；恢复和重建页面不重复请求。 */
+    /**
+     * {@inheritDoc} 建立电视布局后检查首次授权引导；恢复和重建页面不重复请求。
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setTheme(R.style.AppTheme);
@@ -131,9 +186,9 @@ public final class MainActivity extends Activity {
         appliedNightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         if (Objects.nonNull(savedInstanceState)) {
             storageRoot = readSavedFile(savedInstanceState, "storage_root");
             currentDirectory = readSavedFile(savedInstanceState, "current_directory");
@@ -164,8 +219,9 @@ public final class MainActivity extends Activity {
 
     /**
      * 将本 Activity 保存的可空路径恢复为文件引用，不在主线程探测磁盘或执行操作。
+     *
      * @param state 系统保存的页面状态
-     * @param key 路径字段键
+     * @param key   路径字段键
      * @return 文件引用；未保存路径时为 null
      */
     private File readSavedFile(Bundle state, String key) {
@@ -176,6 +232,7 @@ public final class MainActivity extends Activity {
     /**
      * {@inheritDoc} 跟随系统时更新外观；文件扫描或写操作期间延后重建。
      * 固定浅色和深色模式忽略系统明暗变化，防止重建导致取消正在执行的文件任务。
+     *
      * @see <a href="https://developer.android.com/develop/ui/views/theming/darktheme">Configuration changes</a>
      */
     @Override
@@ -188,6 +245,7 @@ public final class MainActivity extends Activity {
 
     /**
      * 空闲时应用系统主题变化；主线程调用，任务进行中保留待处理标志。
+     *
      * @return 是否已安排页面重建，调用方此时应停止绘制旧页面
      */
     private boolean recreateForPendingTheme() {
@@ -199,7 +257,9 @@ public final class MainActivity extends Activity {
         return false;
     }
 
-    /** {@inheritDoc} 从授权页或播放器返回后刷新可用存储及当前目录。 */
+    /**
+     * {@inheritDoc} 从授权页或播放器返回后刷新可用存储及当前目录。
+     */
     @Override
     protected void onResume() {
         super.onResume();
@@ -208,7 +268,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** {@inheritDoc} 不强制中断移动删除阶段，避免错误地承诺操作回滚。 */
+    /**
+     * {@inheritDoc} 不强制中断移动删除阶段，避免错误地承诺操作回滚。
+     */
     @Override
     protected void onDestroy() {
         cancellationRequested.set(true);
@@ -216,7 +278,9 @@ public final class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    /** 建立统一安全边距、标题和导航提示，所有尺寸按电视逻辑密度换算。 */
+    /**
+     * 建立统一安全边距、标题和导航提示，所有尺寸按电视逻辑密度换算。
+     */
     private void createPageLayout(String title, String subtitle) {
         fileGridView = null;
         selectedFile = null;
@@ -245,6 +309,8 @@ public final class MainActivity extends Activity {
                 loadDirectoryFiles(location.directory, null);
             });
         }
+        addNavigationButton(navigation, resolveUsbNavigationLabel(),
+                () -> startActivity(new Intent(this, ExfatUsbActivity.class)));
         addNavigationButton(navigation, getString(R.string.system_root), this::openSystemRootDirectory);
         addNavigationButton(navigation, getString(R.string.terminal), this::showTerminal);
         navigation.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1));
@@ -265,24 +331,44 @@ public final class MainActivity extends Activity {
         setContentView(shell);
     }
 
-    /** 从侧栏显式进入 Linux 系统根目录；默认启动页及普通存储入口保持不变。 */
+    /**
+     * 从侧栏显式进入 Linux 系统根目录；默认启动页及普通存储入口保持不变。
+     */
     private void openSystemRootDirectory() {
         storageRoot = SYSTEM_ROOT_DIRECTORY;
         loadDirectoryFiles(SYSTEM_ROOT_DIRECTORY, null);
     }
 
-    /** 显示以应用进程身份执行单条 Shell 命令的终端页面。 */
+    /** 从 USB 描述符展示设备名；未插入兼容设备时保留通用入口供后续刷新。 */
+    private String resolveUsbNavigationLabel() {
+        UsbManager usbManager = getSystemService(UsbManager.class);
+        if (Objects.nonNull(usbManager)) {
+            for (UsbDevice candidate : usbManager.getDeviceList().values()) {
+                if (Objects.nonNull(UsbScsiBlockDevice.findScsiStorageInterface(candidate))) {
+                    String name = UsbScsiBlockDevice.resolveUsbDeviceDisplayName(candidate);
+                    if (!name.isEmpty()) {
+                        return name;
+                    }
+                }
+            }
+        }
+        return getString(R.string.usb_device);
+    }
+
+    /**
+     * 显示以应用进程身份执行单条 Shell 命令的终端页面。
+     */
     private void showTerminal() {
         currentDirectory = null;
         storageRoot = null;
         terminalVisible = true;
         createPageLayout(getString(R.string.terminal), getString(R.string.terminal_identity_hint));
         TextView commandOutput = createPageText(getString(R.string.terminal_welcome), 16,
-                getColor(R.color.text_primary));
+            getColor(R.color.text_primary));
         commandOutput.setTypeface(Typeface.MONOSPACE);
         commandOutput.setTextIsSelectable(true);
         commandOutput.setPadding(toDisplayPixels(12), toDisplayPixels(12), toDisplayPixels(12),
-                toDisplayPixels(12));
+            toDisplayPixels(12));
         ScrollView outputScroll = new ScrollView(this);
         outputScroll.setFocusable(true);
         outputScroll.addView(commandOutput);
@@ -301,9 +387,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout toolbar = createButtonRow();
         addActionButton(toolbar, getString(R.string.terminal_execute),
-                () -> executeTerminalCommand(commandInput, commandOutput, outputScroll));
+            () -> executeTerminalCommand(commandInput, commandOutput, outputScroll));
         addActionButton(toolbar, getString(R.string.terminal_clear),
-                () -> commandOutput.setText(getString(R.string.terminal_welcome)));
+            () -> commandOutput.setText(getString(R.string.terminal_welcome)));
         Button exitButton = createActionButton(getString(R.string.terminal_exit), this::exitTerminal);
         // 退出属于页面导航，即使命令仍在后台收尾也必须立即可用，不能受通用 busy 门闩阻止。
         exitButton.setOnClickListener(view -> exitTerminal());
@@ -321,7 +407,9 @@ public final class MainActivity extends Activity {
         commandInput.requestFocus();
     }
 
-    /** 立即离开终端页面；单条命令仍受十五秒上限约束并在后台完成资源清理。 */
+    /**
+     * 立即离开终端页面；单条命令仍受十五秒上限约束并在后台完成资源清理。
+     */
     private void exitTerminal() {
         terminalVisible = false;
         showStorageHome();
@@ -329,9 +417,10 @@ public final class MainActivity extends Activity {
 
     /**
      * 校验并在有界文件工作线程中执行命令；输出、退出码和超时状态统一返回主线程显示。
-     * @param commandInput 用户输入控件
+     *
+     * @param commandInput  用户输入控件
      * @param commandOutput 只读输出控件
-     * @param outputScroll 输出滚动容器
+     * @param outputScroll  输出滚动容器
      */
     private void executeTerminalCommand(EditText commandInput, TextView commandOutput, ScrollView outputScroll) {
         String command = commandInput.getText().toString().trim();
@@ -374,9 +463,10 @@ public final class MainActivity extends Activity {
     /**
      * 通过 Android Shell 执行单条命令，合并标准错误并将输出落入应用缓存，避免管道写满造成死锁。
      * 超时后强制终止进程；输出只读取固定上限，缓存文件无论成功失败均尝试删除。
+     *
      * @param command 用户确认执行的完整命令
      * @return 包含退出状态及有界输出的显示文本
-     * @throws IOException 进程启动、缓存或输出读取失败
+     * @throws IOException          进程启动、缓存或输出读取失败
      * @throws InterruptedException Activity 工作线程在等待命令时被中断
      */
     private String runApplicationShellCommand(String command) throws IOException, InterruptedException {
@@ -384,9 +474,9 @@ public final class MainActivity extends Activity {
         Process process = null;
         try {
             process = new ProcessBuilder("/system/bin/sh", "-c", command)
-                    .redirectErrorStream(true)
-                    .redirectOutput(outputFile)
-                    .start();
+                .redirectErrorStream(true)
+                .redirectOutput(outputFile)
+                .start();
             boolean completed = process.waitFor(SHELL_COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (!completed) {
                 process.destroyForcibly();
@@ -409,13 +499,14 @@ public final class MainActivity extends Activity {
 
     /**
      * 读取固定上限的命令输出，超过上限时追加截断说明。
+     *
      * @param outputFile Shell 合并输出文件
      * @return UTF-8 输出文本
      * @throws IOException 文件读取失败
      */
     private String readBoundedShellOutput(File outputFile) throws IOException {
         try (FileInputStream input = new FileInputStream(outputFile);
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
             int remaining = SHELL_OUTPUT_LIMIT_BYTES;
             int count;
@@ -431,7 +522,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 显示磁盘容量及授权入口；容量未知时不以零容量误导用户。 */
+    /**
+     * 显示磁盘容量及授权入口；容量未知时不以零容量误导用户。
+     */
     private void showStorageHome() {
         terminalVisible = false;
         currentDirectory = null;
@@ -442,7 +535,7 @@ public final class MainActivity extends Activity {
             addActionButton(toolbar, getString(R.string.permission_request), this::requestStorageAccess);
         } else {
             TextView permissionStatus = createPageText(getString(R.string.permission_granted), 14,
-                    getColor(R.color.accent));
+                getColor(R.color.accent));
             permissionStatus.setPadding(0, 0, toDisplayPixels(20), 0);
             toolbar.addView(permissionStatus);
         }
@@ -450,7 +543,7 @@ public final class MainActivity extends Activity {
 
         if (Objects.nonNull(clipboardFile)) {
             pageLayout.addView(createPageText(getString(R.string.clipboard_pending, getString(clipboardMove ? R.string.action_move
-                    : R.string.action_copy), clipboardFile.getName()), 16, getColor(R.color.accent)));
+                : R.string.action_copy), clipboardFile.getName()), 16, getColor(R.color.accent)));
         }
         List<StorageLocation> locations = StorageRepository.findStorageLocations(this);
         ScrollView storageScroll = new ScrollView(this);
@@ -462,7 +555,7 @@ public final class MainActivity extends Activity {
             long total = location.directory.getTotalSpace();
             long free = location.directory.getUsableSpace();
             String capacity = total > 0 ? getString(R.string.capacity_summary, Formatter.formatFileSize(this, free),
-                    Formatter.formatFileSize(this, total), Formatter.formatFileSize(this, Math.max(0, total - free))) : getString(R.string.capacity_unknown);
+                Formatter.formatFileSize(this, total), Formatter.formatFileSize(this, Math.max(0, total - free))) : getString(R.string.capacity_unknown);
             LinearLayout volumeCard = new LinearLayout(this);
             volumeCard.setOrientation(LinearLayout.VERTICAL);
             volumeCard.setPadding(toDisplayPixels(22), toDisplayPixels(16), toDisplayPixels(22), toDisplayPixels(16));
@@ -493,11 +586,39 @@ public final class MainActivity extends Activity {
                 volumeCard.requestFocus();
             }
         }
+        UsbManager usbManager = getSystemService(UsbManager.class);
+        if (Objects.nonNull(usbManager)) {
+            for (UsbDevice candidate : usbManager.getDeviceList().values()) {
+                if (Objects.isNull(UsbScsiBlockDevice.findScsiStorageInterface(candidate))) {
+                    continue;
+                }
+                String deviceName = UsbScsiBlockDevice.resolveUsbDeviceDisplayName(candidate);
+                if (deviceName.isEmpty()) {
+                    deviceName = getString(R.string.usb_device);
+                }
+                LinearLayout usbCard = new LinearLayout(this);
+                usbCard.setOrientation(LinearLayout.VERTICAL);
+                usbCard.setPadding(toDisplayPixels(22), toDisplayPixels(16), toDisplayPixels(22), toDisplayPixels(16));
+                usbCard.setBackgroundResource(R.drawable.focus_surface);
+                usbCard.setFocusable(true);
+                usbCard.setOnClickListener(view -> startActivity(new Intent(this, ExfatUsbActivity.class)));
+                usbCard.addView(createPageText(deviceName, 21, getColor(R.color.text_primary)));
+                TextView description = createPageText(getString(R.string.usb_direct_access), 16,
+                    getColor(R.color.text_secondary));
+                description.setPadding(0, toDisplayPixels(8), 0, 0);
+                usbCard.addView(description);
+                LinearLayout.LayoutParams usbParameters = new LinearLayout.LayoutParams(-1, -2);
+                usbParameters.setMargins(0, toDisplayPixels(8), 0, toDisplayPixels(12));
+                storageCards.addView(usbCard, usbParameters);
+            }
+        }
         pageLayout.addView(createPageText(getString(R.string.usb_hint), 14,
-                getColor(R.color.text_secondary)));
+            getColor(R.color.text_secondary)));
     }
 
-    /** 后台加载当前一级目录；无法读取与空目录分别呈现，不进行递归扫描。 */
+    /**
+     * 后台加载当前一级目录；无法读取与空目录分别呈现，不进行递归扫描。
+     */
     private void loadDirectoryFiles(File directory, String selectedName) {
         if (busy) {
             return;
@@ -516,7 +637,7 @@ public final class MainActivity extends Activity {
                     throw new IOException(getString(R.string.directory_unreadable));
                 }
                 Arrays.sort(files, Comparator.comparing(File::isDirectory).reversed()
-                        .thenComparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+                    .thenComparing(File::getName, String.CASE_INSENSITIVE_ORDER));
                 runOnUiThread(() -> {
                     busy = false;
                     if (!isDestroyed() && !recreateForPendingTheme()) {
@@ -536,7 +657,7 @@ public final class MainActivity extends Activity {
                             showStorageHome();
                         }
                         showUserMessage(getString(R.string.read_failed), exception.getMessage())
-                                .setOnDismissListener(dialog -> recreateForPendingTheme());
+                            .setOnDismissListener(dialog -> recreateForPendingTheme());
                     }
                 });
             }
@@ -546,6 +667,7 @@ public final class MainActivity extends Activity {
     /**
      * 读取一级目录；厂商固件拒绝枚举 Linux 根目录时，返回当前设备实际存在的标准顶层路径。
      * 普通子目录不使用候选路径兜底，避免把权限失败误报为空目录。
+     *
      * @param directory 需要读取的绝对目录
      * @return 目录内容；普通目录读取失败时返回 {@code null}
      */
@@ -565,12 +687,14 @@ public final class MainActivity extends Activity {
         return fallbackEntries.toArray(new File[0]);
     }
 
-    /** 显示列表与明确的操作按钮，菜单键不是访问文件操作的唯一方式。 */
+    /**
+     * 显示列表与明确的操作按钮，菜单键不是访问文件操作的唯一方式。
+     */
     private void showDirectoryFiles(String selectedName) {
         createPageLayout(currentDirectory.equals(storageRoot) ? getString(storageRoot.equals(SYSTEM_ROOT_DIRECTORY)
-                        ? R.string.system_root : R.string.disk_files) : currentDirectory.getName(),
-                getResources().getQuantityString(R.plurals.directory_summary, visibleFiles.size(),
-                        currentDirectory.getAbsolutePath(), visibleFiles.size()));
+                                                                          ? R.string.system_root : R.string.disk_files) : currentDirectory.getName(),
+            getResources().getQuantityString(R.plurals.directory_summary, visibleFiles.size(),
+                currentDirectory.getAbsolutePath(), visibleFiles.size()));
         addDirectoryBreadcrumbs();
         LinearLayout toolbar = createButtonRow();
         addActionButton(toolbar, getString(R.string.parent_folder), this::navigateParentDirectory);
@@ -585,7 +709,7 @@ public final class MainActivity extends Activity {
                 showDirectoryFiles(null);
             });
             clipboardToolbar.addView(createPageText(clipboardFile.getName(), 14, getColor(R.color.text_primary)),
-                    new LinearLayout.LayoutParams(0, -2, 1));
+                new LinearLayout.LayoutParams(0, -2, 1));
         }
         if (visibleFiles.isEmpty()) {
             pageLayout.addView(createPageText(getString(R.string.folder_empty), 22, getColor(R.color.text_secondary)));
@@ -619,7 +743,7 @@ public final class MainActivity extends Activity {
         });
         pageLayout.addView(fileGridView, new LinearLayout.LayoutParams(-1, 0, 1));
         pageLayout.addView(createPageText(getString(R.string.navigation_hint), 14,
-                getColor(R.color.text_secondary)));
+            getColor(R.color.text_secondary)));
         fileGridView.requestFocus();
         int selection = 0;
         if (Objects.nonNull(selectedName)) {
@@ -651,7 +775,7 @@ public final class MainActivity extends Activity {
             File directory = directories.get(index);
             String selectedName = index + 1 < directories.size() ? directories.get(index + 1).getName() : null;
             Button breadcrumb = createActionButton(resolveBreadcrumbLabel(directory, storageLocations),
-                    () -> loadDirectoryFiles(directory, selectedName));
+                () -> loadDirectoryFiles(directory, selectedName));
             breadcrumb.setTextSize(18);
             LinearLayout.LayoutParams breadcrumbParameters = new LinearLayout.LayoutParams(-2, toDisplayPixels(52));
             breadcrumbParameters.setMargins(0, 0, toDisplayPixels(8), 0);
@@ -670,6 +794,7 @@ public final class MainActivity extends Activity {
 
     /**
      * 从当前目录向上构造浏览边界内的有序路径；无法到达边界时返回空列表。
+     *
      * @return 从浏览边界到当前目录的路径，列表仅在主线程本次绘制中使用
      */
     private List<File> resolveBreadcrumbDirectories() {
@@ -691,7 +816,8 @@ public final class MainActivity extends Activity {
 
     /**
      * 优先使用存储卷名称作为边界标签，系统根显示斜杠，其余层级显示真实目录名。
-     * @param directory 面包屑对应目录
+     *
+     * @param directory        面包屑对应目录
      * @param storageLocations 当前系统公开的存储卷快照
      * @return 适合按钮显示的本地化或真实目录名称
      */
@@ -707,7 +833,10 @@ public final class MainActivity extends Activity {
         return directory.getName();
     }
 
-    /** 只打开当前存储根下的真实文件，外部应用仅获得单文件只读 URI 授权。 */
+    /**
+     * 只打开当前存储根下的真实文件；内部导入模式仅接受本应用发起的有结果调用，
+     * 防止外部应用设置 Intent extra 获取电视文件的绝对路径。
+     */
     private void openFileEntry(File file) {
         try {
             validateStorageBoundary(file);
@@ -715,22 +844,31 @@ public final class MainActivity extends Activity {
                 loadDirectoryFiles(file, null);
                 return;
             }
+            if (getIntent().getBooleanExtra(EXTRA_PICK_INTERNAL_FILE, false)
+                && getPackageName().equals(getCallingPackage())) {
+                setResult(RESULT_OK, new Intent().putExtra(EXTRA_PICKED_FILE_PATH, file.getAbsolutePath()));
+                finish();
+                return;
+            }
             String name = file.getName();
             int dot = name.lastIndexOf('.');
             String mimeType = dot < 0 ? null : MimeTypeMap.getSingleton()
-                    .getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
+                .getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", file);
             Intent intent = new Intent(Intent.ACTION_VIEW).setDataAndType(uri,
                     Objects.isNull(mimeType) ? "application/octet-stream" : mimeType)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(intent);
-        } catch (IOException | IllegalArgumentException | SecurityException | ActivityNotFoundException exception) {
+        } catch (IOException | IllegalArgumentException | SecurityException |
+                 ActivityNotFoundException exception) {
             Log.e(LOG_TAG, "打开文件失败 source=" + file + " reason=" + exception.getMessage(), exception);
             showUserMessage(getString(R.string.open_failed), getString(R.string.open_error_hint, exception.getMessage()));
         }
     }
 
-    /** 无焦点选择时明确提示，不擅自将第一个文件作为破坏性操作目标。 */
+    /**
+     * 无焦点选择时明确提示，不擅自将第一个文件作为破坏性操作目标。
+     */
     private void showSelectedFileActions() {
         if (Objects.nonNull(fileGridView) && fileGridView.getSelectedItemPosition() >= 0) {
             showFileActions(visibleFiles.get(fileGridView.getSelectedItemPosition()));
@@ -741,46 +879,50 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 显示完整文件名，所有操作通过方向键与确定键可达。 */
+    /**
+     * 显示完整文件名，所有操作通过方向键与确定键可达。
+     */
     private void showFileActions(File file) {
         if (busy) {
             return;
         }
         new AlertDialog.Builder(this).setTitle(file.getName())
-                .setItems(new String[]{getString(R.string.action_open), getString(R.string.action_copy), getString(R.string.action_move), getString(R.string.action_rename), getString(R.string.action_delete), getString(R.string.file_details)}, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
-                            openFileEntry(file);
-                            break;
-                        case 1:
-                        case 2:
-                            clipboardFile = file;
-                            clipboardMove = which == 2;
-                            showDirectoryFiles(file.getName());
-                            Toast.makeText(this, getString(R.string.paste_hint), Toast.LENGTH_LONG).show();
-                            break;
-                        case 3:
-                            requestFileRename(file);
-                            break;
-                        case 4:
-                            confirmFileDeletion(file);
-                            break;
-                        default:
-                            showUserMessage(getString(R.string.file_info), getString(R.string.file_detail_summary, file.getAbsolutePath(),
-                                    file.isDirectory() ? getString(R.string.folder_type) : Formatter.formatFileSize(this, file.length()),
-                                    getString(file.canWrite() ? R.string.file_writable : R.string.file_readonly)));
-                            break;
-                    }
-                }).setNegativeButton(getString(R.string.back), null).show();
+            .setItems(new String[]{getString(R.string.action_open), getString(R.string.action_copy), getString(R.string.action_move), getString(R.string.action_rename), getString(R.string.action_delete), getString(R.string.file_details)}, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        openFileEntry(file);
+                        break;
+                    case 1:
+                    case 2:
+                        clipboardFile = file;
+                        clipboardMove = which == 2;
+                        showDirectoryFiles(file.getName());
+                        Toast.makeText(this, getString(R.string.paste_hint), Toast.LENGTH_LONG).show();
+                        break;
+                    case 3:
+                        requestFileRename(file);
+                        break;
+                    case 4:
+                        confirmFileDeletion(file);
+                        break;
+                    default:
+                        showUserMessage(getString(R.string.file_info), getString(R.string.file_detail_summary, file.getAbsolutePath(),
+                            file.isDirectory() ? getString(R.string.folder_type) : Formatter.formatFileSize(this, file.length()),
+                            getString(file.canWrite() ? R.string.file_writable : R.string.file_readonly)));
+                        break;
+                }
+            }).setNegativeButton(getString(R.string.back), null).show();
     }
 
-    /** 永久删除再次确认且默认焦点放在取消，避免连续确定误删文件。 */
+    /**
+     * 永久删除再次确认且默认焦点放在取消，避免连续确定误删文件。
+     */
     private void confirmFileDeletion(File file) {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(getString(R.string.delete_title))
-                .setMessage(getString(R.string.delete_warning, file.getAbsolutePath()))
-                .setNegativeButton(getString(R.string.cancel), null)
-                .setPositiveButton(getString(R.string.delete_permanent), (ignored, which) -> startFileOperation(FileAction.DELETE, file, null))
-                .create();
+            .setMessage(getString(R.string.delete_warning, file.getAbsolutePath()))
+            .setNegativeButton(getString(R.string.cancel), null)
+            .setPositiveButton(getString(R.string.delete_permanent), (ignored, which) -> startFileOperation(FileAction.DELETE, file, null))
+            .create();
         dialog.setOnShowListener(ignored -> {
             Button cancelButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
             cancelButton.setFocusableInTouchMode(true);
@@ -790,25 +932,31 @@ public final class MainActivity extends Activity {
         dialog.show();
     }
 
-    /** 重命名保留完整原名，最终名称由操作引擎验证。 */
+    /**
+     * 重命名保留完整原名，最终名称由操作引擎验证。
+     */
     private void requestFileRename(File file) {
         EditText input = createNameInput(file.getName());
         new AlertDialog.Builder(this).setTitle(getString(R.string.action_rename)).setView(input)
-                .setNegativeButton(getString(R.string.cancel), null)
-                .setPositiveButton(getString(R.string.save), (dialog, which) -> startFileOperation(FileAction.RENAME, file, input.getText().toString()))
-                .show();
+            .setNegativeButton(getString(R.string.cancel), null)
+            .setPositiveButton(getString(R.string.save), (dialog, which) -> startFileOperation(FileAction.RENAME, file, input.getText().toString()))
+            .show();
     }
 
-    /** 为组织文件提供显式新建目录入口，不自动创建未知父目录。 */
+    /**
+     * 为组织文件提供显式新建目录入口，不自动创建未知父目录。
+     */
     private void requestNewDirectory() {
         EditText input = createNameInput("");
         new AlertDialog.Builder(this).setTitle(getString(R.string.action_new_folder)).setView(input)
-                .setNegativeButton(getString(R.string.cancel), null)
-                .setPositiveButton(getString(R.string.create), (dialog, which) -> startFileOperation(FileAction.CREATE_DIRECTORY, currentDirectory,
-                        input.getText().toString())).show();
+            .setNegativeButton(getString(R.string.cancel), null)
+            .setPositiveButton(getString(R.string.create), (dialog, which) -> startFileOperation(FileAction.CREATE_DIRECTORY, currentDirectory,
+                input.getText().toString())).show();
     }
 
-    /** 输入通过系统电视输入法；限制为单行，不伪造英文键盘来替代中文输入。 */
+    /**
+     * 输入通过系统电视输入法；限制为单行，不伪造英文键盘来替代中文输入。
+     */
     private EditText createNameInput(String initialName) {
         EditText input = new EditText(this);
         input.setInputType(InputType.TYPE_CLASS_TEXT);
@@ -818,17 +966,19 @@ public final class MainActivity extends Activity {
         return input;
     }
 
-    /** 粘贴前明确显示目标；跨卷移动的源删除风险在确认页面可见。 */
+    /**
+     * 粘贴前明确显示目标；跨卷移动的源删除风险在确认页面可见。
+     */
     private void pasteClipboardFile() {
         if (Objects.isNull(clipboardFile)) {
             return;
         }
         new AlertDialog.Builder(this).setTitle(clipboardMove ? getString(R.string.move_here) : getString(R.string.copy_here))
-                .setMessage(getString(R.string.paste_confirmation, clipboardFile.getAbsolutePath(), currentDirectory.getAbsolutePath(),
-                        getString(clipboardMove ? R.string.move_warning : R.string.copy_warning)))
-                .setNegativeButton(getString(R.string.cancel), null)
-                .setPositiveButton(getString(R.string.start), (dialog, which) -> startFileOperation(clipboardMove ? FileAction.MOVE : FileAction.COPY,
-                        clipboardFile, null)).show();
+            .setMessage(getString(R.string.paste_confirmation, clipboardFile.getAbsolutePath(), currentDirectory.getAbsolutePath(),
+                getString(clipboardMove ? R.string.move_warning : R.string.copy_warning)))
+            .setNegativeButton(getString(R.string.cancel), null)
+            .setPositiveButton(getString(R.string.start), (dialog, which) -> startFileOperation(clipboardMove ? FileAction.MOVE : FileAction.COPY,
+                clipboardFile, null)).show();
     }
 
     /**
@@ -848,13 +998,13 @@ public final class MainActivity extends Activity {
         operationProgress = createPageText(getString(R.string.operation_running, getString(action.labelResource)), 19, getColor(R.color.text_primary));
         operationProgress.setPadding(32, 24, 32, 24);
         operationDialog = new AlertDialog.Builder(this).setTitle(getString(R.string.operation_title, getString(action.labelResource), source.getName()))
-                .setView(operationProgress).setCancelable(false).setNegativeButton(getString(R.string.request_cancel), null).create();
+            .setView(operationProgress).setCancelable(false).setNegativeButton(getString(R.string.request_cancel), null).create();
         operationDialog.setOnShowListener(dialog -> operationDialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-                .setOnClickListener(view -> {
-                    cancellationRequested.set(true);
-                    operationProgress.setText(getString(R.string.cancel_pending));
-                    view.setEnabled(false);
-                }));
+            .setOnClickListener(view -> {
+                cancellationRequested.set(true);
+                operationProgress.setText(getString(R.string.cancel_pending));
+                view.setEnabled(false);
+            }));
         operationDialog.show();
         fileExecutor.execute(() -> {
             String failure = null;
@@ -887,7 +1037,7 @@ public final class MainActivity extends Activity {
                 }
             } catch (IOException | RuntimeException exception) {
                 Log.e(LOG_TAG, "文件操作失败 action=" + action + " source=" + source + " destination=" + destination
-                        + " newName=" + newName + " reason=" + exception.getMessage(), exception);
+                    + " newName=" + newName + " reason=" + exception.getMessage(), exception);
                 failure = Objects.nonNull(exception.getMessage()) ? exception.getMessage() : getString(R.string.error_unknown);
             }
             String finalFailure = failure;
@@ -907,14 +1057,16 @@ public final class MainActivity extends Activity {
                 } else {
                     // 先让用户读完失败原因，再刷新或应用等待中的主题，避免重建吞掉错误提示。
                     showUserMessage(getString(R.string.operation_failed, getString(action.labelResource)),
-                            getString(R.string.operation_failure_details, finalFailure))
-                            .setOnDismissListener(dialog -> refreshCurrentDirectory());
+                        getString(R.string.operation_failure_details, finalFailure))
+                        .setOnDismissListener(dialog -> refreshCurrentDirectory());
                 }
             });
         });
     }
 
-    /** 进度每 200 毫秒最多投递一次，防止高速文件复制淹没主线程消息队列。 */
+    /**
+     * 进度每 200 毫秒最多投递一次，防止高速文件复制淹没主线程消息队列。
+     */
     private void reportOperationProgress(String fileName, long copiedBytes) {
         long now = SystemClock.elapsedRealtime();
         if (now - lastProgressTime < 200) {
@@ -928,15 +1080,19 @@ public final class MainActivity extends Activity {
         });
     }
 
-    /** 核对真实路径属于当前存储卷，拒绝符号链接跳转。 */
+    /**
+     * 核对真实路径属于当前存储卷，拒绝符号链接跳转。
+     */
     private void validateStorageBoundary(File file) throws IOException {
         if (Files.isSymbolicLink(file.toPath()) || Objects.isNull(storageRoot)
-                || !file.getCanonicalFile().toPath().startsWith(storageRoot.getCanonicalFile().toPath())) {
+            || !file.getCanonicalFile().toPath().startsWith(storageRoot.getCanonicalFile().toPath())) {
             throw new IOException(getString(R.string.boundary_error));
         }
     }
 
-    /** 写操作允许用户已进入的任意绝对路径；系统根本身只能作为新建目录的父路径。 */
+    /**
+     * 写操作允许用户已进入的任意绝对路径；系统根本身只能作为新建目录的父路径。
+     */
     private void validateOperationSource(File file, boolean allowRoot) throws IOException {
         if (Files.isSymbolicLink(file.toPath())) {
             throw new IOException(getString(R.string.link_unsupported));
@@ -947,7 +1103,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 返回父目录时恢复原文件夹焦点；卷根返回首页。 */
+    /**
+     * 返回父目录时恢复原文件夹焦点；卷根返回首页。
+     */
     private void navigateParentDirectory() {
         if (busy) {
             return;
@@ -959,7 +1117,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 刷新当前位置，不更改剪贴板。 */
+    /**
+     * 刷新当前位置，不更改剪贴板。
+     */
     private void refreshCurrentDirectory() {
         if (busy || recreateForPendingTheme()) {
             return;
@@ -971,7 +1131,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 查询 Android 11+ 的所有文件访问权限，不能通过版本或设置页跳转结果推断已经授权。 */
+    /**
+     * 查询 Android 11+ 的所有文件访问权限，不能通过版本或设置页跳转结果推断已经授权。
+     */
     private boolean hasStorageAccess() {
         return Environment.isExternalStorageManager();
     }
@@ -988,14 +1150,15 @@ public final class MainActivity extends Activity {
         }
         permissionPreferences.edit().putBoolean("guidance_shown", true).apply();
         new AlertDialog.Builder(this).setTitle(R.string.permission_request)
-                .setMessage(R.string.permission_initial_hint)
-                .setPositiveButton(R.string.permission_request, (dialog, which) -> requestStorageAccess())
-                .setNegativeButton(R.string.cancel, null).show();
+            .setMessage(R.string.permission_initial_hint)
+            .setPositiveButton(R.string.permission_request, (dialog, which) -> requestStorageAccess())
+            .setNegativeButton(R.string.cancel, null).show();
     }
 
     /**
      * 依次尝试应用专属和通用所有文件访问页。
      * 两者均失败时保留明确的手动设置入口，不把页面成功打开视为已经授权。
+     *
      * @see <a href="https://developer.android.com/training/data-storage/manage-all-files">所有文件访问权限</a>
      */
     private void requestStorageAccess() {
@@ -1004,26 +1167,27 @@ public final class MainActivity extends Activity {
             return;
         }
         if (tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:" + getPackageName())))
-                || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))) {
+            Uri.parse("package:" + getPackageName())))
+            || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))) {
             return;
         }
         new AlertDialog.Builder(this).setTitle(R.string.permission_page_missing)
-                .setMessage(R.string.permission_page_hint)
-                .setPositiveButton(R.string.open_app_settings, (dialog, which) -> openStoragePermissionSettings())
-                .setNegativeButton(R.string.cancel, null).show();
+            .setMessage(R.string.permission_page_hint)
+            .setPositiveButton(R.string.open_app_settings, (dialog, which) -> openStoragePermissionSettings())
+            .setNegativeButton(R.string.cancel, null).show();
     }
 
     /**
      * 用户确认后打开应用详情，缺失或受限时依次回退应用列表、系统设置。
      * 厂商可能不提供所需开关；全部失败只提示，不循环跳转或触发普通读写权限假授权。
+     *
      * @see <a href="https://developer.android.com/reference/android/provider/Settings">系统设置 Intent 契约</a>
      */
     private void openStoragePermissionSettings() {
         if (tryOpenStorageSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:" + getPackageName())))
-                || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
-                || tryOpenStorageSettings(new Intent(Settings.ACTION_SETTINGS))) {
+            Uri.parse("package:" + getPackageName())))
+            || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
+            || tryOpenStorageSettings(new Intent(Settings.ACTION_SETTINGS))) {
             return;
         }
         showUserMessage(getString(R.string.permission_page_missing), getString(R.string.permission_settings_missing_hint));
@@ -1031,6 +1195,7 @@ public final class MainActivity extends Activity {
 
     /**
      * 尝试一次设置页跳转；只处理系统缺少入口及访问拒绝，保留完整异常和设备上下文供真机诊断。
+     *
      * @param intent 标准设置动作，应用专属入口须携带当前包名
      * @return 系统是否接受启动请求；不代表用户已授予文件权限
      */
@@ -1040,93 +1205,107 @@ public final class MainActivity extends Activity {
             return true;
         } catch (ActivityNotFoundException | SecurityException exception) {
             Log.w(LOG_TAG, "打开存储设置失败 action=" + intent.getAction() + " data=" + intent.getData()
-                    + " package=" + getPackageName() + " manufacturer=" + Build.MANUFACTURER
-                    + " model=" + Build.MODEL + " sdk=" + Build.VERSION.SDK_INT + " firmware=" + Build.DISPLAY
-                    + " exception=" + exception.getClass().getSimpleName() + " reason=" + exception.getMessage(), exception);
+                + " package=" + getPackageName() + " manufacturer=" + Build.MANUFACTURER
+                + " model=" + Build.MODEL + " sdk=" + Build.VERSION.SDK_INT + " firmware=" + Build.DISPLAY
+                + " exception=" + exception.getClass().getSimpleName() + " reason=" + exception.getMessage(), exception);
             return false;
         }
     }
 
-    /** 展示真实运行环境，解决电视设置页隐藏底层系统版本的问题，不读取设备唯一标识。 */
+    /**
+     * 展示真实运行环境，解决电视设置页隐藏底层系统版本的问题，不读取设备唯一标识。
+     */
     private void showDeviceInformation() {
         showUserMessage(getString(R.string.device_info), getString(R.string.device_summary,
-                Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE, Build.VERSION.SDK_INT,
-                String.join(", ", Build.SUPPORTED_ABIS), Build.DISPLAY,
-                getString(hasStorageAccess() ? R.string.enabled : R.string.disabled), BuildConfig.VERSION_NAME));
+            Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE, Build.VERSION.SDK_INT,
+            String.join(", ", Build.SUPPORTED_ABIS), Build.DISPLAY,
+            getString(hasStorageAccess() ? R.string.enabled : R.string.disabled), BuildConfig.VERSION_NAME));
     }
 
-    /** 展示来自构建配置的版本和用户确认的作者、许可及项目地址，入口适配遥控器。 */
+    /**
+     * 展示来自构建配置的版本和用户确认的作者、许可及项目地址，入口适配遥控器。
+     */
     private void showAboutApplication() {
         new AlertDialog.Builder(this).setTitle(getString(R.string.about_title))
-                .setMessage(getString(R.string.about_summary, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
-                .setPositiveButton(getString(R.string.version_notes), (dialog, which) -> showBundledDocument(
-                        getString(R.string.version_notes), localizedDocumentPath("版本说明", "Release-notes")))
-                .setNeutralButton(getString(R.string.open_source), (dialog, which) -> showLicenseMenu())
-                .setNegativeButton(getString(R.string.language), (dialog, which) -> showLanguageOptions())
-                .show();
+            .setMessage(getString(R.string.about_summary, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+            .setPositiveButton(getString(R.string.version_notes), (dialog, which) -> showBundledDocument(
+                getString(R.string.version_notes), localizedDocumentPath("版本说明", "Release-notes")))
+            .setNeutralButton(getString(R.string.open_source), (dialog, which) -> showLicenseMenu())
+            .setNegativeButton(getString(R.string.language), (dialog, which) -> showLanguageOptions())
+            .show();
     }
 
-    /** 外观入口集中提供主题与语言；保留关于页语言按钮便于已有用户找到设置。 */
+    /**
+     * 外观入口集中提供主题与语言；保留关于页语言按钮便于已有用户找到设置。
+     */
     private void showAppearanceOptions() {
         new AlertDialog.Builder(this).setTitle(R.string.appearance)
-                .setItems(new String[]{getString(R.string.theme_mode), getString(R.string.language)}, (dialog, which) -> {
-                    if (which == 0) {
-                        showThemeOptions();
-                    } else {
-                        showLanguageOptions();
-                    }
-                }).setNegativeButton(R.string.cancel, null).show();
+            .setItems(new String[]{getString(R.string.theme_mode), getString(R.string.language)}, (dialog, which) -> {
+                if (which == 0) {
+                    showThemeOptions();
+                } else {
+                    showLanguageOptions();
+                }
+            }).setNegativeButton(R.string.cancel, null).show();
     }
 
-    /** 三种主题选择持久化后重建页面；入口按钮在文件任务进行中不可执行。 */
+    /**
+     * 三种主题选择持久化后重建页面；入口按钮在文件任务进行中不可执行。
+     */
     private void showThemeOptions() {
         String[] modes = {AppAppearance.LIGHT, AppAppearance.DARK, AppAppearance.SYSTEM};
         String currentMode = AppAppearance.readThemeMode(this);
         new AlertDialog.Builder(this).setTitle(R.string.theme_mode)
-                .setSingleChoiceItems(new String[]{getString(R.string.theme_light), getString(R.string.theme_dark),
-                        getString(R.string.follow_system)}, Arrays.asList(modes).indexOf(currentMode), (dialog, which) -> {
-                    dialog.dismiss();
-                    if (!currentMode.equals(modes[which]) && !busy) {
-                        AppAppearance.saveThemeMode(this, modes[which]);
-                        recreate();
-                    }
-                }).setNegativeButton(R.string.cancel, null).show();
+            .setSingleChoiceItems(new String[]{getString(R.string.theme_light), getString(R.string.theme_dark),
+                getString(R.string.follow_system)}, Arrays.asList(modes).indexOf(currentMode), (dialog, which) -> {
+                dialog.dismiss();
+                if (!currentMode.equals(modes[which]) && !busy) {
+                    AppAppearance.saveThemeMode(this, modes[which]);
+                    recreate();
+                }
+            }).setNegativeButton(R.string.cancel, null).show();
     }
 
-    /** 当前应用支持中文与英文，其他系统语言使用默认英文文档。 */
+    /**
+     * 当前应用支持中文与英文，其他系统语言使用默认英文文档。
+     */
     private String localizedDocumentPath(String chineseName, String englishName) {
         boolean chinese = "zh".equals(getResources().getConfiguration().getLocales().get(0).getLanguage());
         return "docs/" + (chinese ? chineseName : englishName) + ".md";
     }
 
-    /** 项目许可证与第三方许可分开显示，第三方组件不被重新授权为本项目协议。 */
+    /**
+     * 项目许可证与第三方许可分开显示，第三方组件不被重新授权为本项目协议。
+     */
     private void showLicenseMenu() {
         new AlertDialog.Builder(this).setTitle(getString(R.string.open_source))
-                .setItems(new String[]{getString(R.string.project_license), getString(R.string.third_party_notices),
-                        getString(R.string.project_homepage)}, (dialog, which) -> {
-                    if (which == 0) {
-                        showBundledDocument(getString(R.string.project_license), "LICENSE");
-                    } else if (which == 1) {
-                        showBundledDocument(getString(R.string.third_party_notices),
-                                localizedDocumentPath("第三方声明", "Third-party-notices"));
-                    } else {
-                        openProjectHomepage();
-                    }
-                }).setNegativeButton(getString(R.string.back), null).show();
+            .setItems(new String[]{getString(R.string.project_license), getString(R.string.third_party_notices),
+                getString(R.string.project_homepage)}, (dialog, which) -> {
+                if (which == 0) {
+                    showBundledDocument(getString(R.string.project_license), "LICENSE");
+                } else if (which == 1) {
+                    showBundledDocument(getString(R.string.third_party_notices),
+                        localizedDocumentPath("第三方声明", "Third-party-notices"));
+                } else {
+                    openProjectHomepage();
+                }
+            }).setNegativeButton(getString(R.string.back), null).show();
     }
 
-    /** 语言偏好仅在无文件任务时变更；重建页面回到首页，不更改电视的系统语言。 */
+    /**
+     * 语言偏好仅在无文件任务时变更；重建页面回到首页，不更改电视的系统语言。
+     */
     private void showLanguageOptions() {
         String[] tags = {"", "zh-CN", "en"};
         String currentTag = AppLanguage.readLanguageTag(this);
         int selectedIndex = Arrays.asList(tags).indexOf(currentTag);
         new AlertDialog.Builder(this).setTitle(getString(R.string.language))
-                .setSingleChoiceItems(new String[]{getString(R.string.follow_system), "简体中文", "English"},
-                        selectedIndex, (dialog, which) -> {
-                            AppLanguage.saveLanguageTag(this, tags[which]);
-                            dialog.dismiss();
-                            recreate();
-                        }).setNegativeButton(getString(R.string.cancel), null).show();
+            .setSingleChoiceItems(new String[]{getString(R.string.follow_system), "简体中文", "English"},
+                selectedIndex, (dialog, which) -> {
+                    AppLanguage.saveLanguageTag(this, tags[which]);
+                    dialog.dismiss();
+                    recreate();
+                }).setNegativeButton(getString(R.string.cancel), null).show();
     }
 
     /**
@@ -1135,7 +1314,7 @@ public final class MainActivity extends Activity {
      */
     private void showBundledDocument(String title, String assetPath) {
         try (InputStream input = getAssets().open(assetPath);
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
             int count;
             while ((count = input.read(buffer)) != -1) {
@@ -1147,7 +1326,7 @@ public final class MainActivity extends Activity {
             scroll.addView(document);
             scroll.setFocusable(true);
             AlertDialog dialog = new AlertDialog.Builder(this).setTitle(title).setView(scroll)
-                    .setPositiveButton(getString(R.string.close), null).create();
+                .setPositiveButton(getString(R.string.close), null).create();
             dialog.setOnShowListener(ignored -> scroll.requestFocus());
             dialog.show();
         } catch (IOException exception) {
@@ -1156,7 +1335,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 使用系统浏览器打开固定项目地址；未安装浏览器时显示地址供用户在其他设备访问。 */
+    /**
+     * 使用系统浏览器打开固定项目地址；未安装浏览器时显示地址供用户在其他设备访问。
+     */
     private void openProjectHomepage() {
         String homepage = "https://github.com/JinlongLiao/TvFinder";
         try {
@@ -1167,7 +1348,9 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** {@inheritDoc} 支持遥控器菜单键，无菜单键遥控器可长按确定。 */
+    /**
+     * {@inheritDoc} 支持遥控器菜单键，无菜单键遥控器可长按确定。
+     */
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_MENU && Objects.nonNull(currentDirectory) && !busy) {
@@ -1177,7 +1360,9 @@ public final class MainActivity extends Activity {
         return super.onKeyUp(keyCode, event);
     }
 
-    /** {@inheritDoc} 目录内返回上级，首页返回退出，任务执行中不离开页面。 */
+    /**
+     * {@inheritDoc} 目录内返回上级，首页返回退出，任务执行中不离开页面。
+     */
     @Override
     public void onBackPressed() {
         if (busy) {
@@ -1190,12 +1375,16 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** 将逻辑尺寸转换为物理像素，避免高分辨率电视上控件过小。 */
+    /**
+     * 将逻辑尺寸转换为物理像素，避免高分辨率电视上控件过小。
+     */
     private int toDisplayPixels(int densityPixels) {
         return Math.round(densityPixels * getResources().getDisplayMetrics().density);
     }
 
-    /** 创建只读文字块，焦点仅留给可操作控件。 */
+    /**
+     * 创建只读文字块，焦点仅留给可操作控件。
+     */
     private TextView createPageText(String text, int size, int color) {
         TextView textView = new TextView(this);
         textView.setText(text);
@@ -1204,7 +1393,9 @@ public final class MainActivity extends Activity {
         return textView;
     }
 
-    /** 工具栏横排承载最常用操作，放在文件列表之前便于方向键上移访问。 */
+    /**
+     * 工具栏横排承载最常用操作，放在文件列表之前便于方向键上移访问。
+     */
     private LinearLayout createButtonRow() {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -1213,7 +1404,9 @@ public final class MainActivity extends Activity {
         return row;
     }
 
-    /** 为按钮设置可见的描边焦点状态，动作执行前统一检查任务门闩。 */
+    /**
+     * 为按钮设置可见的描边焦点状态，动作执行前统一检查任务门闩。
+     */
     private Button createActionButton(String label, Runnable action) {
         Button button = new Button(this);
         button.setText(label);
@@ -1230,20 +1423,22 @@ public final class MainActivity extends Activity {
         return button;
     }
 
-    /** 侧栏导航保持统一高度和左对齐，焦点描边与文件区共享色彩。 */
+    /**
+     * 侧栏导航保持统一高度和左对齐，焦点描边与文件区共享色彩。
+     */
     private void addNavigationButton(LinearLayout navigation, String label, Runnable action) {
         Button button = createActionButton(label, action);
         button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         button.setTextSize(16);
         button.setBackgroundResource(R.drawable.navigation_surface);
         boolean active = !terminalVisible && Objects.isNull(currentDirectory)
-                && label.equals(getString(R.string.storage_home));
+            && label.equals(getString(R.string.storage_home));
         active |= terminalVisible && label.equals(getString(R.string.terminal));
         active |= Objects.nonNull(storageRoot) && storageRoot.equals(SYSTEM_ROOT_DIRECTORY)
-                && label.equals(getString(R.string.system_root));
+            && label.equals(getString(R.string.system_root));
         for (StorageLocation location : StorageRepository.findStorageLocations(this)) {
             active |= Objects.nonNull(storageRoot) && storageRoot.equals(location.directory)
-                    && label.equals(location.displayName);
+                && label.equals(location.displayName);
         }
         button.setSelected(active);
         LinearLayout.LayoutParams parameters = new LinearLayout.LayoutParams(-1, toDisplayPixels(48));
@@ -1251,7 +1446,9 @@ public final class MainActivity extends Activity {
         navigation.addView(button, parameters);
     }
 
-    /** 按内容宽度排列工具栏按钮，并保留方向键焦点之间的视觉间距。 */
+    /**
+     * 按内容宽度排列工具栏按钮，并保留方向键焦点之间的视觉间距。
+     */
     private void addActionButton(LinearLayout row, String label, Runnable action) {
         LinearLayout.LayoutParams parameters = new LinearLayout.LayoutParams(-2, toDisplayPixels(46));
         parameters.setMargins(0, 0, toDisplayPixels(10), 0);
@@ -1260,12 +1457,13 @@ public final class MainActivity extends Activity {
 
     /**
      * 使用遥控器可关闭的原生对话框显示信息与可诊断失败。
-     * @param title 本地化标题
+     *
+     * @param title   本地化标题
      * @param message 说明或错误根因
      * @return 已显示的对话框，调用方可在关闭后刷新目录或应用待处理的主题
      */
     private AlertDialog showUserMessage(String title, String message) {
         return new AlertDialog.Builder(this).setTitle(title).setMessage(message)
-                .setPositiveButton(getString(R.string.okay), null).show();
+            .setPositiveButton(getString(R.string.okay), null).show();
     }
 }

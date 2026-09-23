@@ -24,8 +24,8 @@ Author: liaojinlong. Project: https://github.com/JinlongLiao/TvFinder
 ### Compatibility and limitations
 
 - Android 11 / API 30 minimum; application ID io.github.jnlongliao.tv.finder.
-- The preview APK uses debug signing and is not an app-store production release.
-- Hisense E5Q hardware, USB drivers, NTFS/exFAT writing, and power-loss behavior require validation.
+- The current Release APK uses a separate release signing key. Features remain at the 0.1.0 preview stage and have not completed app-store acceptance. Older debug APKs have a different signing certificate.
+- The current Hisense TV reports system model `VIDAA_TV`, device code `MT9653`, and Android 11 / API 30. E5Q is the owner-provided series name; the exact retail model is unconfirmed. Full UI, NTFS, power-loss, and large-file scenarios still need acceptance testing.
 - It does not automatically become the system default file manager. System-entry takeover, NAS/SMB, recycle bin, media player, and APK installer are not included.
 - A file-type icon does not mean the format can be executed or played on Android.
 - Concurrent modification of the same files by other apps is unsupported. Deletion and the source-deletion stage of a move cannot be rolled back transactionally.

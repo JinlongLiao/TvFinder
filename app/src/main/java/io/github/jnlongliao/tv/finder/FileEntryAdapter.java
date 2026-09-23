@@ -11,46 +11,62 @@ import android.widget.LinearLayout;
 import android.widget.ImageView;
 import android.widget.AbsListView;
 import android.widget.TextView;
+
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
 
-/** 文件网格复用卡片视图，保持长目录的遥控器滚动流畅；数据仅在 UI 线程访问。 */
+/**
+ * 文件网格复用卡片视图，保持长目录的遥控器滚动流畅；数据仅在 UI 线程访问。
+ */
 public final class FileEntryAdapter extends BaseAdapter {
-    /** 当前页面上下文，与列表生命周期一致。 */
+    /**
+     * 当前页面上下文，与列表生命周期一致。
+     */
     private final Context context;
-    /** 已排序的本次目录快照，构造后不变更。 */
+    /**
+     * 已排序的本次目录快照，构造后不变更。
+     */
     private final List<File> files;
 
     /**
      * 绑定当前目录快照。
+     *
      * @param context 页面上下文
-     * @param files 文件夹优先排列的文件列表
+     * @param files   文件夹优先排列的文件列表
      */
     public FileEntryAdapter(Context context, List<File> files) {
         this.context = context;
         this.files = files;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int getCount() {
         return files.size();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public File getItem(int position) {
         return files.get(position);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public long getItemId(int position) {
         return position;
     }
 
-    /** {@inheritDoc} 行本身不抢夺焦点，由 GridView 的选择器绘制遥控器焦点。 */
+    /**
+     * {@inheritDoc} 行本身不抢夺焦点，由 GridView 的选择器绘制遥控器焦点。
+     */
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         LinearLayout row;
@@ -86,8 +102,8 @@ public final class FileEntryAdapter extends BaseAdapter {
         ((ImageView) row.getChildAt(0)).setImageResource(category.iconResource);
         ((TextView) row.getChildAt(1)).setText(file.getName());
         String information = file.isDirectory() ? context.getString(R.string.folder_type)
-                : context.getString(R.string.file_type_size, context.getString(category.labelResource),
-                        Formatter.formatFileSize(context, file.length()));
+            : context.getString(R.string.file_type_size, context.getString(category.labelResource),
+            Formatter.formatFileSize(context, file.length()));
         ((TextView) row.getChildAt(2)).setText(information);
         return row;
     }

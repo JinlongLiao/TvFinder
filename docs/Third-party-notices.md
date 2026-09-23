@@ -1,8 +1,12 @@
 # Third-party notices
 
-Checked on 2026-09-22. This inventory comes from the resolved Gradle `debugRuntimeClasspath`. License metadata was checked against each artifact POM, including inherited parent POMs. Machine-specific cache paths are not distributed.
+Checked on 2026-09-24. The Java dependency inventory comes from the resolved Gradle `debugRuntimeClasspath` and artifact POM license metadata. Bundled C sources are listed separately below. Machine-specific cache paths are not distributed.
 
 TV Finder is authored by liaojinlong and licensed under Apache-2.0. Third-party components retain their own copyrights and licenses. See the bundled [Apache-2.0 text](licenses/Apache-2.0.txt).
+
+## Native library sources
+
+The repository bundles [FatFs R0.16](https://elm-chan.org/fsw/ff/) sources `ff.c`, `ff.h`, `ffunicode.c`, and `diskio.h` by ChaN. The original [`LICENSE.txt`](../app/src/main/cpp/fatfs/LICENSE.txt) requires preserving its copyright notice, conditions, and disclaimer when redistributing source. Upstream [patch-1 and patch-2](https://elm-chan.org/fsw/ff/patches.html) are applied to `ff.c`; `ffconf.h` is the project's configuration, and `usb_fatfs_bridge.c` is this project's Android adapter. NDK/CMake builds these sources into `libtvfinder_fatfs.so` without downloading C code during the build. See the [native build guide](Native-build-guide.md).
 
 ## Runtime dependencies
 

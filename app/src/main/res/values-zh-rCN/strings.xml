@@ -3,6 +3,16 @@
     <!-- 界面文案及错误说明；位置占位符在中英文资源中必须保持一致。 -->
     <string name="app_name">电视文件管家</string>
     <string name="storage_home">存储空间</string>
+    <string name="usb_device">USB 设备</string>
+    <string name="usb_direct_access">在 TV Finder 中直接访问 · 需授权 USB 设备</string>
+    <string name="usb_connecting">正在连接 USB 存储设备…</string>
+    <string name="usb_permission_denied">未获得 USB 设备访问权限</string>
+    <string name="usb_not_found">未发现兼容的 USB 存储设备</string>
+    <string name="usb_import">从电视导入</string>
+    <string name="usb_export">导出到电视</string>
+    <string name="usb_folder_hint">确定：打开目录或操作    返回：上级目录</string>
+    <string name="usb_select_name">名称</string>
+    <string name="usb_incomplete">操作未完成，请刷新并检查源和目标。</string>
     <string name="storage_tagline">你的文件，井然有序。    /    本地存储与 USB 设备</string>
     <string name="permission_granted">存储权限已开启</string>
     <string name="permission_request">开启文件访问权限</string>

@@ -1,6 +1,10 @@
 .gradle/
 .build-cache/
 **/build/
+**/.cxx/
+**/.externalNativeBuild/
+/.scratch/
+/.signing/
 local.properties
 .idea/
 *.iml
