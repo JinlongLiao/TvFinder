@@ -18,6 +18,10 @@ android {
         buildConfig true
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
     // 应用内可离线切换中英文，打包时始终携带全部语言资源。
     bundle {
         language {
@@ -49,4 +53,5 @@ tasks.named('preBuild').configure {
 dependencies {
     implementation 'androidx.core:core:1.13.1'
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.13'
 }

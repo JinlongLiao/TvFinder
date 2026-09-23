@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -104,7 +105,7 @@ public final class MainActivity extends Activity {
         super.attachBaseContext(AppAppearance.applyThemeContext(AppLanguage.localizeAppContext(context)));
     }
 
-    /** {@inheritDoc} 固定横屏并启用电视全屏布局，不依赖 Google 服务。 */
+    /** {@inheritDoc} 建立电视布局后检查首次授权引导；恢复和重建页面不重复请求。 */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setTheme(R.style.AppTheme);
@@ -126,6 +127,7 @@ public final class MainActivity extends Activity {
         } else {
             showStorageHome();
         }
+        showInitialStoragePermissionGuidance();
     }
 
     /**
@@ -688,25 +690,79 @@ public final class MainActivity extends Activity {
         return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
-    /** 尝试应用专属授权页，厂商缺少时回退通用页；均缺少则明确提示。 */
+    /**
+     * 未授权的安装首次启动时显示用途说明，用户确认后才发起系统授权。
+     * 主线程调用；显示前持久标记，取消、返回或重建均不重复弹出，仍可从首页手动请求。
+     * 该标记只表示引导已展示，实际授权状态始终由系统查询。
+     */
+    private void showInitialStoragePermissionGuidance() {
+        SharedPreferences permissionPreferences = getSharedPreferences("storage_permission", MODE_PRIVATE);
+        if (hasStorageAccess() || permissionPreferences.getBoolean("guidance_shown", false)) {
+            return;
+        }
+        permissionPreferences.edit().putBoolean("guidance_shown", true).apply();
+        new AlertDialog.Builder(this).setTitle(R.string.permission_request)
+                .setMessage(R.string.permission_initial_hint)
+                .setPositiveButton(R.string.permission_request, (dialog, which) -> requestStorageAccess())
+                .setNegativeButton(R.string.cancel, null).show();
+    }
+
+    /**
+     * 旧版请求运行时权限，Android 11+ 依次尝试专属和通用所有文件访问页。
+     * 两者均失败时保留明确的手动设置入口，不把页面成功打开视为已经授权。
+     * @see <a href="https://developer.android.com/training/data-storage/manage-all-files">所有文件访问权限</a>
+     */
     private void requestStorageAccess() {
+        if (hasStorageAccess()) {
+            showStorageHome();
+            return;
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
             return;
         }
+        if (tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:" + getPackageName())))
+                || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))) {
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle(R.string.permission_page_missing)
+                .setMessage(R.string.permission_page_hint)
+                .setPositiveButton(R.string.open_app_settings, (dialog, which) -> openStoragePermissionSettings())
+                .setNegativeButton(R.string.cancel, null).show();
+    }
+
+    /**
+     * 用户确认后打开应用详情，缺失或受限时依次回退应用列表、系统设置。
+     * 厂商可能不提供所需开关；全部失败只提示，不循环跳转或触发普通读写权限假授权。
+     * @see <a href="https://developer.android.com/reference/android/provider/Settings">系统设置 Intent 契约</a>
+     */
+    private void openStoragePermissionSettings() {
+        if (tryOpenStorageSettings(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + getPackageName())))
+                || tryOpenStorageSettings(new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
+                || tryOpenStorageSettings(new Intent(Settings.ACTION_SETTINGS))) {
+            return;
+        }
+        showUserMessage(getString(R.string.permission_page_missing), getString(R.string.permission_settings_missing_hint));
+    }
+
+    /**
+     * 尝试一次设置页跳转；只处理系统缺少入口及访问拒绝，保留完整异常和设备上下文供真机诊断。
+     * @param intent 标准设置动作，应用专属入口须携带当前包名
+     * @return 系统是否接受启动请求；不代表用户已授予文件权限
+     */
+    private boolean tryOpenStorageSettings(Intent intent) {
         try {
-            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    Uri.parse("package:" + getPackageName())));
+            startActivity(intent);
+            return true;
         } catch (ActivityNotFoundException | SecurityException exception) {
-            Log.w(LOG_TAG, "打开应用存储授权页失败 package=" + getPackageName()
-                    + " reason=" + exception.getMessage(), exception);
-            try {
-                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
-            } catch (ActivityNotFoundException | SecurityException fallbackException) {
-                Log.e(LOG_TAG, "打开通用存储授权页失败 reason=" + fallbackException.getMessage(), fallbackException);
-                showUserMessage(getString(R.string.permission_page_missing), getString(R.string.permission_page_hint));
-            }
+            Log.w(LOG_TAG, "打开存储设置失败 action=" + intent.getAction() + " data=" + intent.getData()
+                    + " package=" + getPackageName() + " manufacturer=" + Build.MANUFACTURER
+                    + " model=" + Build.MODEL + " sdk=" + Build.VERSION.SDK_INT + " firmware=" + Build.DISPLAY
+                    + " exception=" + exception.getClass().getSimpleName() + " reason=" + exception.getMessage(), exception);
+            return false;
         }
     }
 

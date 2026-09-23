@@ -57,8 +57,11 @@
     <string name="boundary_error">Cannot access symbolic links or paths outside the current drive.</string>
     <string name="link_unsupported">Symbolic links are not supported.</string>
     <string name="source_unavailable">The drive is disconnected, the path is inaccessible, or the target is a protected drive root.</string>
-    <string name="permission_page_missing">Permission page unavailable</string>
-    <string name="permission_page_hint">Look for file management permissions for TV Finder in your TV settings.\nIf no option is available, share the Device info details for troubleshooting.</string>
+    <string name="permission_initial_hint">Browsing, copying, moving and deleting files on your TV or USB storage requires file access.\nChoose Allow file access to continue. Android 11 and later will try to open the system All files access settings. You can also cancel and enable access from the home screen later.</string>
+    <string name="permission_page_missing">Cannot open permission page</string>
+    <string name="permission_page_hint">Your TV does not provide or allow opening the standard All files access page.\nOpen app settings and look for All files access or file management permission for TV Finder. Media read permission alone is not sufficient.\nIf no matching switch exists, this firmware may not support granting access through its interface. Keep the Device info details for further diagnosis.</string>
+    <string name="open_app_settings">Open app settings</string>
+    <string name="permission_settings_missing_hint">App details, the app list and system settings could not be opened. Use your TV remote to enter system settings and look for All files access for TV Finder. If no switch exists, device information and system logs are needed for further diagnosis.</string>
     <string name="permission_denied">Access not granted</string>
     <string name="permission_denied_hint">Storage permission is needed to browse and manage files. You can enable it from the home screen.</string>
     <string name="enabled">Enabled</string>

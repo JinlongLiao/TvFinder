@@ -57,8 +57,11 @@
     <string name="boundary_error">无法访问当前磁盘以外的路径或符号链接。</string>
     <string name="link_unsupported">不支持操作符号链接。</string>
     <string name="source_unavailable">磁盘已断开、路径不可访问或目标是受保护的磁盘根目录。</string>
-    <string name="permission_page_missing">系统未提供授权页面</string>
-    <string name="permission_page_hint">请在电视设置的应用权限中查找“电视文件管家”的文件管理权限。\n若没有入口，请提供设备信息页内容以便适配。</string>
+    <string name="permission_initial_hint">浏览、复制、移动和删除电视或 USB 中的文件需要文件访问权限。\n选择“开启文件访问权限”继续；Android 11 及以上会尝试打开系统的“所有文件访问”设置。你也可以取消，稍后从首页开启。</string>
+    <string name="permission_page_missing">无法打开授权页面</string>
+    <string name="permission_page_hint">电视系统未提供或不允许打开标准的“所有文件访问”授权页面。\n可以打开应用设置，查找 TV Finder（电视文件管家）的“所有文件访问”或文件管理权限。普通媒体读取权限不能替代此权限。\n如果设置中也没有对应开关，此固件可能无法通过界面授予权限，请保留设备信息以便进一步诊断。</string>
+    <string name="open_app_settings">打开应用设置</string>
+    <string name="permission_settings_missing_hint">应用详情、应用列表和系统设置入口均无法打开。请用电视遥控器进入系统设置，查找 TV Finder 的“所有文件访问”权限。若没有此开关，需要结合设备信息和系统日志继续诊断。</string>
     <string name="permission_denied">尚未授权</string>
     <string name="permission_denied_hint">浏览和管理磁盘文件需要存储权限，可稍后在首页开启。</string>
     <string name="enabled">已开启</string>
