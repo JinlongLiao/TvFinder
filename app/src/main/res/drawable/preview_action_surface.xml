@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 遥控器焦点使用明显的品牌蓝背景与浅色描边，普通按钮融入预览底栏。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="@color/preview_focus" />
+            <corners android:radius="10dp" />
+            <stroke android:width="2dp" android:color="@color/preview_foreground" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape>
+            <solid android:color="@color/preview_focus" />
+            <corners android:radius="10dp" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="@color/preview_panel" />
+            <corners android:radius="10dp" />
+            <stroke android:width="1dp" android:color="@color/preview_border" />
+        </shape>
+    </item>
+</selector>

@@ -50,6 +50,10 @@ public final class ExfatUsbActivity extends Activity {
      * 应用内文件选择请求码，仅用于从电视导入单个文件。
      */
     private static final int IMPORT_REQUEST_CODE = 41;
+    /** USB 临时预览返回请求码，与导入文件选择分开处理。 */
+    private static final int PREVIEW_REQUEST_CODE = 42;
+    /** USB 文件临时副本上限，单位字节；防止占满电视应用缓存。 */
+    private static final long MAX_PREVIEW_BYTES = 1024L * 1024 * 1024;
     /**
      * 文件流读写缓冲区大小，单位字节。
      */
@@ -107,6 +111,10 @@ public final class ExfatUsbActivity extends Activity {
      * 主线程任务门闩，防止同一文件操作重复触发。
      */
     private boolean busy;
+    /** 当前 USB 预览的临时副本，预览页返回后删除。 */
+    private File previewCopy;
+    /** 当前预览持有的 USB 同目录切换会话，返回列表或页面销毁时关闭。 */
+    private UsbPreviewSession usbPreviewSession;
     /**
      * 是否已注册授权接收器。
      */
@@ -258,7 +266,7 @@ public final class ExfatUsbActivity extends Activity {
                 currentDirectory = childPath(currentDirectory, entry.name);
                 loadCurrentDirectory();
             } else {
-                showEntryActions(entry);
+                previewUsbEntry(entry);
             }
         });
         entryGridView.setOnItemLongClickListener((parent, view, position, id) -> {
@@ -368,9 +376,7 @@ public final class ExfatUsbActivity extends Activity {
             : getString(R.string.usb_folder_hint));
     }
 
-    /**
-     * 显示单条目录项可执行的复制、移动、改名和删除等动作。
-     */
+    /** 显示 USB 目录项操作；普通文件还可经菜单键选择外部应用打开。 */
     private void showEntryActions(FatFsVolume.DirectoryEntry entry) {
         if (busy) {
             return;
@@ -380,16 +386,20 @@ public final class ExfatUsbActivity extends Activity {
             ? new String[]{getString(R.string.action_open), getString(R.string.action_copy),
             getString(R.string.action_move), getString(R.string.action_rename),
             getString(R.string.action_delete)}
-            : new String[]{getString(R.string.action_copy), getString(R.string.action_move),
+            : new String[]{getString(R.string.action_open), getString(R.string.action_copy), getString(R.string.action_move),
             getString(R.string.action_rename), getString(R.string.action_delete),
-            getString(R.string.usb_export)};
+            getString(R.string.usb_export), getString(R.string.preview_external_open)};
         new AlertDialog.Builder(this).setTitle(entry.name).setItems(options, (dialog, which) -> {
             if (entry.directory && which == 0) {
                 currentDirectory = path;
                 loadCurrentDirectory();
                 return;
             }
-            int action = entry.directory ? which - 1 : which;
+            if (!entry.directory && which == 0) {
+                previewUsbEntry(entry);
+                return;
+            }
+            int action = which - 1;
             if (action == 0 || action == 1) {
                 clipboardPath = path;
                 clipboardDirectory = entry.directory;
@@ -401,8 +411,110 @@ public final class ExfatUsbActivity extends Activity {
                 confirmDeleteEntry(path, entry.directory);
             } else if (!entry.directory && action == 4) {
                 exportFileToTelevision(path, entry.name);
+            } else if (!entry.directory && action == 5) {
+                previewUsbEntry(entry, true);
             }
         }).show();
+    }
+
+    /**
+     * USB 直读卷不是 Android 文件路径；先在串行工作线程生成有界缓存副本，再打开同一预览页。
+     * 复制失败或空间不足时清理半成品，原 USB 文件始终保持只读。
+     *
+     * @param entry 当前卷中要内建预览的普通文件
+     */
+    private void previewUsbEntry(FatFsVolume.DirectoryEntry entry) {
+        previewUsbEntry(entry, false);
+    }
+
+    /**
+     * USB 文件先复制到有界缓存，并记录同目录文件快照供预览页上下键切换。
+     * 外部打开与内建预览共用副本；返回后关闭会话并清理初始副本。
+     *
+     * @param entry 当前卷中的普通文件
+     * @param openExternally 是否进入预览页后立即显示外部应用选择器
+     */
+    private void previewUsbEntry(FatFsVolume.DirectoryEntry entry, boolean openExternally) {
+        if (busy || Objects.isNull(fatFsVolume)) {
+            return;
+        }
+        busy = true;
+        String directory = currentDirectory;
+        String source = childPath(directory, entry.name);
+        showStatus(getString(R.string.preview_usb_copying));
+        usbExecutor.execute(() -> {
+            File temporary = null;
+            UsbPreviewSession session = null;
+            try {
+                List<FatFsVolume.DirectoryEntry> entries = fatFsVolume.listDirectoryEntries(directory);
+                entries.sort(Comparator.comparing((FatFsVolume.DirectoryEntry item) -> !item.directory)
+                    .thenComparing(item -> item.name, String.CASE_INSENSITIVE_ORDER));
+                long size = fatFsVolume.getFileSize(source);
+                if (size > MAX_PREVIEW_BYTES) {
+                    throw new IOException(getString(R.string.preview_usb_too_large));
+                }
+                if (size + 16L * 1024 * 1024 > getCacheDir().getUsableSpace()) {
+                    throw new IOException(getString(R.string.preview_usb_no_space));
+                }
+                int dot = entry.name.lastIndexOf('.');
+                String extension = dot < 0 ? "" : entry.name.substring(dot + 1);
+                String suffix = extension.matches("[A-Za-z0-9]{1,10}") ? "." + extension : ".tmp";
+                temporary = File.createTempFile("usb-preview-", suffix, getCacheDir());
+                try (FileOutputStream output = new FileOutputStream(temporary)) {
+                    byte[] buffer = new byte[FILE_BUFFER_BYTES];
+                    long offset = 0;
+                    int length;
+                    while ((length = fatFsVolume.readFileChunk(source, offset, buffer)) > 0) {
+                        output.write(buffer, 0, length);
+                        offset += length;
+                        if (offset > MAX_PREVIEW_BYTES) {
+                            throw new IOException(getString(R.string.preview_usb_too_large));
+                        }
+                    }
+                    if (offset != size) {
+                        throw new IOException("USB 文件在预览复制期间发生变化: " + source);
+                    }
+                }
+                File copy = temporary;
+                session = UsbPreviewSession.create(fatFsVolume, directory, entries,
+                    entry.name, copy, getCacheDir());
+                UsbPreviewSession previewSession = session;
+                runOnUiThread(() -> {
+                    busy = false;
+                    if (isDestroyed()) {
+                        previewSession.close();
+                        if (!copy.delete()) {
+                            Log.w("TvFinderUsb", "预览副本清理失败: " + copy);
+                        }
+                        return;
+                    }
+                    previewCopy = copy;
+                    usbPreviewSession = previewSession;
+                    showStatus(getString(R.string.usb_folder_hint));
+                    try {
+                        Intent previewIntent = FilePreviewActivity.createUsbPreviewIntent(this, copy,
+                            entry.name, previewSession.getId(), openExternally);
+                        startActivityForResult(previewIntent, PREVIEW_REQUEST_CODE);
+                    } catch (RuntimeException exception) {
+                        previewSession.close();
+                        usbPreviewSession = null;
+                        if (!copy.delete()) {
+                            Log.w("TvFinderUsb", "预览副本清理失败: " + copy);
+                        }
+                        previewCopy = null;
+                        reportUsbFailure("open preview", source, exception);
+                    }
+                });
+            } catch (Exception exception) {
+                if (Objects.nonNull(session)) {
+                    session.close();
+                }
+                if (Objects.nonNull(temporary) && !temporary.delete()) {
+                    Log.w("TvFinderUsb", "预览副本清理失败: " + temporary);
+                }
+                reportUsbFailure("preview", source, exception);
+            }
+        });
     }
 
     /**
@@ -541,6 +653,17 @@ public final class ExfatUsbActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PREVIEW_REQUEST_CODE) {
+            if (Objects.nonNull(usbPreviewSession)) {
+                usbPreviewSession.close();
+                usbPreviewSession = null;
+            }
+            if (Objects.nonNull(previewCopy) && !previewCopy.delete()) {
+                Log.w("TvFinderUsb", "预览副本清理失败: " + previewCopy);
+            }
+            previewCopy = null;
+            return;
+        }
         if (requestCode != IMPORT_REQUEST_CODE || resultCode != RESULT_OK || Objects.isNull(data)) {
             return;
         }
@@ -702,6 +825,10 @@ public final class ExfatUsbActivity extends Activity {
      */
     @Override
     protected void onDestroy() {
+        if (Objects.nonNull(usbPreviewSession)) {
+            usbPreviewSession.close();
+            usbPreviewSession = null;
+        }
         if (receiverRegistered) {
             unregisterReceiver(permissionReceiver);
             receiverRegistered = false;

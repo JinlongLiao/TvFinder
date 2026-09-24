@@ -6,6 +6,13 @@
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
+    <!-- 查询能打开当前文件的应用，以便给实际候选应用授予单文件只读权限。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:mimeType="*/*" />
+        </intent>
+    </queries>
     <application android:label="@string/app_name" android:theme="@style/AppTheme"
         android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
@@ -21,6 +28,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".ExfatUsbActivity" android:exported="false"
+            android:screenOrientation="landscape"
+            tools:ignore="LockedOrientationActivity" />
+        <activity android:name=".FilePreviewActivity" android:exported="false"
             android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
         <provider android:name="androidx.core.content.FileProvider"

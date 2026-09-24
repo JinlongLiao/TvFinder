@@ -10,7 +10,7 @@ A local file manager designed for the current Hisense TV, which reports `VIDAA_T
 - **Project:** [JinlongLiao/TvFinder](https://github.com/JinlongLiao/TvFinder)
 - **SSH URL:** `git@github.com:JinlongLiao/TvFinder.git`
 - **Application ID:** `io.github.jnlongliao.tv.finder`
-- **Version:** 0.1.0, personal-use preview. Some USB behavior has been tested on this TV; full feature acceptance is pending.
+- **Version:** 0.1.0, personal-use preview. Built-in preview and remote controls have been checked with test files on this TV; full format compatibility remains unverified.
 - **License:** Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and the separate third-party notices.
 
 ## Features
@@ -20,9 +20,9 @@ A local file manager designed for the current Hisense TV, which reports `VIDAA_T
 - Browse, open, copy, move, rename, permanently delete files, and create folders.
 - Chinese and English UI, including application-generated error messages. Follow the system or choose a language in **About → Language**. Switching language preserves the current folder and pending clipboard item and is unavailable during file operations. Unsupported languages fall back to English.
 - Type-specific icons for packages, Word, spreadsheets, presentations, PDF, text, audio, video, images, archives, code, subtitles, e-books, and disk images.
-- No ads, no network permission, and no built-in player or NAS/SMB support.
+- No ads or network permission. Built-in preview uses Android's media decoders; NAS/SMB is not supported.
 
-Extensions are matched without case sensitivity. Recognizing EXE, RPM, or other packages does **not** mean Android can run those programs. Opening a file requires a compatible app already installed on the TV. File names are never translated or changed by language selection.
+Extensions are matched without case sensitivity. Recognizing EXE, RPM, or other packages does **not** mean Android can run those programs. An external opener still requires a compatible app installed on the TV. File names are never translated or changed by language selection.
 
 ## Appearance
 
@@ -30,12 +30,24 @@ Open **Appearance → Theme** for **Light, Dark, or System default**. Light is t
 
 ## Install and navigate
 
-1. Install the locally generated `交付/电视文件管家-0.1.0-release.apk`. This Release build uses a separate signing key; the APK and private key are not committed to Git.
+1. For the new preview features, install `app/build/outputs/apk/debug/app-debug.apk`. The earlier `交付/电视文件管家-0.1.0-release.apk` has not been rebuilt with these changes. Debug and Release signatures differ, so they cannot update each other directly. APKs and private keys are not committed to Git.
 2. Open **TV Finder** from the TV application list and choose **Allow file access**.
 3. Open internal storage or a system-mounted USB drive. For an exFAT drive absent from the system list, choose its device name in the sidebar and grant USB-device access.
-4. Use direction keys to select, OK to open, and Back to return to the parent folder.
+4. Use direction keys to select a file, OK to preview it, and Back to return to the file list.
 5. Press Menu, hold OK, or choose **Actions** to copy, move, rename, delete, or inspect the selected file.
 6. After copying or moving, open the destination folder and choose **Paste**. Confirm the displayed source and destination.
+
+## Built-in preview and remote keys
+
+| Key | Action in preview |
+| --- | --- |
+| Up / Down | Previous / next supported file in the same folder, across file types. Stops at the first or last file. |
+| Left / Right | Previous / next PDF page or visible text screen; rewind / forward audio and video by 10 seconds. |
+| OK or Play/Pause | Toggle media playback when the player has focus; OK activates a focused control button. |
+| Menu | Choose another installed app that can handle this file type, if the TV offers one. |
+| Back | Return to the file list. |
+
+The app previews common images, PDFs, UTF-8 text, and media supported by the TV's Android decoders. `docx/docm`, `xlsx/xlsm`, and `pptx/pptm/ppsx` yield **limited plain text**, without original layout, formulas, styling, or embedded media. The displayed text-screen count is based on the TV viewport, not the Office document's original pages. Older binary `doc/xls/ppt` files require a compatible external app. Direct USB files are copied into app cache before preview; adjacent USB files are copied on demand. Each USB preview copy is limited to 1 GiB and is cleaned up when preview ends. When choosing another app, compatible candidate apps temporarily receive an explicit read grant for this single file; those explicit grants are revoked on return or preview destruction.
 
 ## File safety and limitations
 
@@ -43,7 +55,7 @@ Open **Appearance → Theme** for **Light, Dark, or System default**. Light is t
 - Internal storage means shared user storage. System data and other apps private directories are not generally accessible.
 - Reported capacity comes from the mounted filesystem. It is not the advertised flash capacity, and used space is not a promise of reclaimable space.
 - USB discovery uses system storage volumes and readable `/storage` mount points. Hidden vendor mounts, missing permission settings, or read-only NTFS/exFAT drivers require device-specific verification.
-- The device-named USB entry is a separate, app-only USB Host path. It does not mount the drive for the TV or other apps, and it does not support NTFS. It supports in-volume folders, copy, move, rename, delete, single-file import through TV Finder's internal browser, and export to `Download/TV Finder`. Export a file before opening it in another TV app.
+- The device-named USB entry is a separate, app-only USB Host path. It does not mount the drive for the TV or other apps, and it does not support NTFS. It supports in-volume folders, copy, move, rename, delete, single-file import through TV Finder's internal browser, and export to `Download/TV Finder`. Built-in preview uses a temporary copy; the Menu key can offer that copy to compatible installed apps.
 - Direct access currently targets SCSI Bulk-Only devices with 512/4096-byte logical sectors and READ/WRITE(10) addressing. Multi-partition devices, unusual bridges, power loss, and large files need further acceptance testing. Cross-storage folder moves are not implemented.
 - The app still opens on the storage home screen. **System root** in the sidebar opens `/`, and large focusable breadcrumbs jump directly to any ancestor. This entry cannot bypass Android, SELinux, or read-only mount restrictions.
 - Existing targets are never silently overwritten or merged. Rename rejects blank names, path traversal, separators, and reserved characters.
@@ -102,7 +114,7 @@ The specified external `com.wlzn.common.util` source tree is unavailable in this
 
 ## Device acceptance
 
-On 2026-09-24, an isolated diagnostic build on the paired Android 11 Hisense TV read an exFAT directory and completed create, write/read-back, rename, copy, and delete operations in a test folder, which was cleaned up. The Release APK was installed and launched; first-run storage permission and USB file operations in the Release package still require device acceptance. User files, files over 4 GiB, full drives, unplugging, standby, and cross-platform builds also remain unverified.
+On 2026-09-24, an isolated diagnostic build on the paired Android 11 Hisense TV read an exFAT directory and completed create, write/read-back, rename, copy, and delete operations in a test folder, which was cleaned up. The new Debug build was also installed: a test folder was browsed continuously across DOCX, MP3, MP4, PDF, image, and text; PDF right-key paging and media 10-second seeks worked. Two test media files were imported to the exFAT drive, used to verify MP3-to-MP4 Down-key switching, then deleted. See the [preview device validation report](交付/预览功能实机验证.md). These new changes have not been accepted in a rebuilt Release APK. User files, files over 4 GiB, full drives, unplugging, standby, and cross-platform builds remain unverified.
 
 ## References
 

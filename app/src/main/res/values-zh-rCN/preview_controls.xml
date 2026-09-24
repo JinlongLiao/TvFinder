@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preview_remote_hint">上下：切换文件   ·   返回：退出   ·   菜单：其他应用</string>
+    <string name="preview_switch_boundary">这个方向没有更多可预览文件。</string>
+    <string name="preview_switch_unavailable">当前文件没有可切换的同目录列表。</string>
+    <string name="preview_switch_loading">正在准备下一个文件…</string>
+    <string name="preview_switch_failed">切换文件失败：%1$s</string>
+    <string name="preview_pdf_remote_hint">左右方向键翻页</string>
+    <string name="preview_document_remote_hint">左右方向键翻屏</string>
+    <!-- 文本预览按可视屏翻动，不能代表原 Office 文档的印刷页。 -->
+    <string name="preview_previous_screen">上一屏</string>
+    <string name="preview_next_screen">下一屏</string>
+    <string name="preview_screen">第 %1$d / %2$d 屏</string>
+    <string name="preview_reading_text">文字阅读</string>
+    <!-- 媒体底栏在时长可用后开放定位操作。 -->
+    <string name="preview_rewind_10_seconds">后退 10 秒</string>
+    <string name="preview_forward_10_seconds">前进 10 秒</string>
+    <string name="preview_play">播放</string>
+    <string name="preview_pause">暂停</string>
+    <string name="preview_media_time">%1$s / %2$s</string>
+    <string name="preview_media_time_unknown">--:--</string>
+    <string name="preview_media_finished">播放结束</string>
+    <string name="preview_media_preparing">正在准备播放…</string>
+</resources>

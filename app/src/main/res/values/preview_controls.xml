@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preview_remote_hint">Up/Down: files   ·   Back: exit   ·   Menu: apps</string>
+    <string name="preview_switch_boundary">No more previewable files in this direction.</string>
+    <string name="preview_switch_unavailable">This file has no available folder navigation.</string>
+    <string name="preview_switch_loading">Preparing the next file…</string>
+    <string name="preview_switch_failed">Cannot switch file: %1$s</string>
+    <string name="preview_pdf_remote_hint">Left / Right: change page</string>
+    <string name="preview_document_remote_hint">Left / Right: change screen</string>
+    <!-- 文本预览按可视屏翻动，不能代表原 Office 文档的印刷页。 -->
+    <string name="preview_previous_screen">Previous screen</string>
+    <string name="preview_next_screen">Next screen</string>
+    <string name="preview_screen">Screen %1$d / %2$d</string>
+    <string name="preview_reading_text">Text reading</string>
+    <!-- 媒体底栏在时长可用后开放定位操作。 -->
+    <string name="preview_rewind_10_seconds">Back 10 seconds</string>
+    <string name="preview_forward_10_seconds">Forward 10 seconds</string>
+    <string name="preview_play">Play</string>
+    <string name="preview_pause">Pause</string>
+    <string name="preview_media_time">%1$s / %2$s</string>
+    <string name="preview_media_time_unknown">--:--</string>
+    <string name="preview_media_finished">Playback finished</string>
+    <string name="preview_media_preparing">Preparing playback…</string>
+</resources>

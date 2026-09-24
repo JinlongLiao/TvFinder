@@ -24,7 +24,6 @@ import android.view.inputmethod.EditorInfo;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.AdapterView;
 import android.widget.EditText;
@@ -38,7 +37,6 @@ import android.widget.ImageView;
 import android.content.res.ColorStateList;
 import android.widget.Toast;
 
-import androidx.core.content.FileProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -850,15 +848,8 @@ public final class MainActivity extends Activity {
                 finish();
                 return;
             }
-            String name = file.getName();
-            int dot = name.lastIndexOf('.');
-            String mimeType = dot < 0 ? null : MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
-            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", file);
-            Intent intent = new Intent(Intent.ACTION_VIEW).setDataAndType(uri,
-                    Objects.isNull(mimeType) ? "application/octet-stream" : mimeType)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(intent);
+            startActivity(FilePreviewActivity.createDirectoryPreviewIntent(this, file, file.getName(),
+                currentDirectory, false));
         } catch (IOException | IllegalArgumentException | SecurityException |
                  ActivityNotFoundException exception) {
             Log.e(LOG_TAG, "打开文件失败 source=" + file + " reason=" + exception.getMessage(), exception);
@@ -879,15 +870,21 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /**
-     * 显示完整文件名，所有操作通过方向键与确定键可达。
-     */
+    /** 显示完整文件名；普通文件还可经菜单键交给电视上的其他应用打开。 */
     private void showFileActions(File file) {
         if (busy) {
             return;
         }
+        String[] actions = file.isDirectory()
+            ? new String[]{getString(R.string.action_open), getString(R.string.action_copy),
+            getString(R.string.action_move), getString(R.string.action_rename),
+            getString(R.string.action_delete), getString(R.string.file_details)}
+            : new String[]{getString(R.string.action_open), getString(R.string.action_copy),
+            getString(R.string.action_move), getString(R.string.action_rename),
+            getString(R.string.action_delete), getString(R.string.file_details),
+            getString(R.string.preview_external_open)};
         new AlertDialog.Builder(this).setTitle(file.getName())
-            .setItems(new String[]{getString(R.string.action_open), getString(R.string.action_copy), getString(R.string.action_move), getString(R.string.action_rename), getString(R.string.action_delete), getString(R.string.file_details)}, (dialog, which) -> {
+            .setItems(actions, (dialog, which) -> {
                 switch (which) {
                     case 0:
                         openFileEntry(file);
@@ -905,13 +902,29 @@ public final class MainActivity extends Activity {
                     case 4:
                         confirmFileDeletion(file);
                         break;
-                    default:
+                    case 5:
                         showUserMessage(getString(R.string.file_info), getString(R.string.file_detail_summary, file.getAbsolutePath(),
                             file.isDirectory() ? getString(R.string.folder_type) : Formatter.formatFileSize(this, file.length()),
                             getString(file.canWrite() ? R.string.file_writable : R.string.file_readonly)));
                         break;
+                    default:
+                        openFileWithExternalApplication(file);
+                        break;
                 }
             }).setNegativeButton(getString(R.string.back), null).show();
+    }
+
+    /** 复用内建预览页的单文件只读授权，并保留当前目录供遥控器切换相邻文件。 */
+    private void openFileWithExternalApplication(File file) {
+        try {
+            validateStorageBoundary(file);
+            startActivity(FilePreviewActivity.createDirectoryPreviewIntent(this, file, file.getName(),
+                currentDirectory, true));
+        } catch (IOException | IllegalArgumentException | SecurityException |
+                 ActivityNotFoundException exception) {
+            Log.e(LOG_TAG, "外部打开文件失败 source=" + file + " reason=" + exception.getMessage(), exception);
+            showUserMessage(getString(R.string.preview_failed, exception.getMessage()), file.getName());
+        }
     }
 
     /**

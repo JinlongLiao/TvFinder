@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 预览页沿用文件管理器的浅色基调，媒体内容仍由深色舞台承托。 -->
+    <color name="preview_background">#F3F5F8</color>
+    <color name="preview_panel">#FFFFFF</color>
+    <color name="preview_border">#CBD5E1</color>
+    <color name="preview_foreground">#172536</color>
+    <color name="preview_secondary">#526277</color>
+    <color name="preview_focus">#0964C6</color>
+    <color name="preview_paper">#FFFFFF</color>
+    <color name="preview_ink">#172536</color>
+    <color name="preview_disabled">#8492A3</color>
+    <color name="preview_media_stage">#172536</color>
+</resources>
