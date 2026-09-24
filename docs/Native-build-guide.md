@@ -71,6 +71,7 @@ Expect one entry per ABI. A successful build verifies compilation and packaging,
 | SDK location missing | Set `ANDROID_HOME` or local `sdk.dir`. |
 | SDK license not accepted | Run `sdkmanager --licenses` from the same SDK. |
 | NDK/CMake missing or `source.properties` missing | Install or reinstall the pinned component through SDK Manager. |
+| `CXX1429` with `CMakeTmp/testCCompiler.c` or `cmTC_*.dir` missing in `CMakeError.log` | Temporary files disappeared during the compiler check. Stop concurrent Android Studio and command-line builds in the same checkout, then run one Gradle build. If it still fails, inspect the detailed logs under `app/.cxx/` and `app/build/intermediates/cxx/` before changing the NDK. |
 | JDK or class-file version error | Check `java -version`, `JAVA_HOME`, and the IDE's Gradle JDK; use JDK 17. |
 | Download or TLS error | Check Gradle, Google Maven, Maven Central, and Android SDK connectivity; retry without `--offline`. |
 | `UnsatisfiedLinkError` | Check the APK's `.so` entries and device CPU ABI. |

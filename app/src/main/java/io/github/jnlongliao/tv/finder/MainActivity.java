@@ -24,7 +24,6 @@ import android.view.inputmethod.EditorInfo;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.AdapterView;
 import android.widget.EditText;
@@ -835,7 +834,8 @@ public final class MainActivity extends Activity {
 
     /**
      * 只打开当前存储根下的真实文件；内部导入模式仅接受本应用发起的有结果调用，
-     * 防止外部应用设置 Intent extra 获取电视文件的绝对路径。
+     * 防止外部应用设置 Intent extra 获取电视文件的绝对路径。普通文件在应用内预览，
+     * 不支持的类型交给系统应用选择器；目录仍在本页浏览。
      */
     private void openFileEntry(File file) {
         try {
@@ -850,15 +850,14 @@ public final class MainActivity extends Activity {
                 finish();
                 return;
             }
-            String name = file.getName();
-            int dot = name.lastIndexOf('.');
-            String mimeType = dot < 0 ? null : MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", file);
-            Intent intent = new Intent(Intent.ACTION_VIEW).setDataAndType(uri,
-                    Objects.isNull(mimeType) ? "application/octet-stream" : mimeType)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(intent);
+            FilePreviewType previewType = FilePreviewType.resolveFilePreviewType(file.getName());
+            if (previewType == FilePreviewType.UNSUPPORTED) {
+                FilePreviewActivity.openFileWithOtherApplications(this, uri, file.getName());
+            } else {
+                startActivity(FilePreviewActivity.createPreviewIntent(this, uri, file.getName(),
+                    file.getParentFile().getCanonicalPath(), false));
+            }
         } catch (IOException | IllegalArgumentException | SecurityException |
                  ActivityNotFoundException exception) {
             Log.e(LOG_TAG, "打开文件失败 source=" + file + " reason=" + exception.getMessage(), exception);

@@ -1,5 +1,11 @@
 # Release notes
 
+## In development · 2026-09-24 · Release APK not rebuilt
+
+- Source builds add in-app audio/video playback, page-by-page PDF preview, plain text and formatted Markdown viewing, and HTML preview. Unsupported TV codecs can still be tried in another app.
+- Direct USB files are read on demand inside the app. Opening them in another app first creates a temporary cached copy. Unknown formats can use the system app chooser.
+- HTML can run scripts and load online resources; local resources stay within the file directory and its children. Playback and large USB files still need TV acceptance testing.
+
 ## 0.1.0 · 2026-09-22 · Preview
 
 Author: liaojinlong. Project: https://github.com/JinlongLiao/TvFinder

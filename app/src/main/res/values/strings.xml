@@ -51,6 +51,19 @@
     <string name="folder_empty">This folder is empty</string>
     <string name="navigation_hint">OK: open    Menu / hold OK: actions    Back: parent folder</string>
     <string name="open_failed">Cannot open file</string>
+    <string name="preview_other_apps">Open with another app</string>
+    <string name="preview_no_external_app">No installed app can open this file.</string>
+    <string name="preview_unsupported">TV Finder cannot preview this format. Try another app.</string>
+    <string name="preview_failed">Preview failed: %1$s</string>
+    <string name="preview_decode_failed">This TV cannot decode the file. Try another app.</string>
+    <string name="preview_audio">Audio player</string>
+    <string name="preview_play">Play</string>
+    <string name="preview_pause">Pause</string>
+    <string name="preview_previous_page">Previous page</string>
+    <string name="preview_next_page">Next page</string>
+    <string name="preview_page_number">Page %1$d of %2$d</string>
+    <string name="preview_text_truncated">Only the first 2 MiB is shown.</string>
+    <string name="preview_copying_for_external">Copying to temporary storage for another app…</string>
     <string name="select_file">Select a file</string>
     <string name="select_file_hint">Select a file with the direction keys, then press Menu or hold OK.</string>
     <string name="action_open">Open</string>
@@ -92,7 +105,7 @@
     <string name="clipboard_pending">Pending %1$s: %2$s  ·  Open a destination folder and choose Paste</string>
     <string name="capacity_summary">Free %1$s / Total %2$s    Used %3$s</string>
     <string name="volume_summary">%1$s\n%2$s\n%3$s</string>
-    <string name="open_error_hint">Make sure an app supporting this format is installed.\n%1$s</string>
+    <string name="open_error_hint">Check that the file is readable and the drive is still connected.\n%1$s</string>
     <string name="file_detail_summary">%1$s\n%2$s\n%3$s</string>
     <string name="delete_warning">%1$s\n\nFolders and their contents will be deleted. This cannot be undone.</string>
     <string name="paste_confirmation">%1$s\n→ %2$s\n%3$s</string>
@@ -132,7 +145,7 @@
     <string name="documents_failed">Cannot read document</string>
     <string name="link_failed">Cannot open link</string>
     <string name="close">Close</string>
-    <string name="about_summary">Version: %1$s (%2$d)\nAuthor: liaojinlong\nLicense: Apache-2.0\nProject: https://github.com/JinlongLiao/TvFinder\n\nLocal file management designed for a TV remote. No ads or network permission.</string>
+    <string name="about_summary">Version: %1$s (%2$d)\nAuthor: liaojinlong\nLicense: Apache-2.0\nProject: https://github.com/JinlongLiao/TvFinder\n\nLocal file management designed for a TV remote. No ads. HTML preview can load online resources.</string>
     <string name="type_package">Package</string>
     <string name="type_document">Document</string>
     <string name="type_spreadsheet">Spreadsheet</string>

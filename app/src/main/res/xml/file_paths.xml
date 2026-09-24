@@ -2,4 +2,5 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 支持用户从系统根目录选择可读文件；只有明确打开的单个文件获得临时只读授权。 -->
     <root-path name="system_root" path="." />
+    <cache-path name="external_preview" path="external-preview/" />
 </paths>

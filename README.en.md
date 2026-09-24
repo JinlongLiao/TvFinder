@@ -20,9 +20,9 @@ A local file manager designed for the current Hisense TV, which reports `VIDAA_T
 - Browse, open, copy, move, rename, permanently delete files, and create folders.
 - Chinese and English UI, including application-generated error messages. Follow the system or choose a language in **About → Language**. Switching language preserves the current folder and pending clipboard item and is unavailable during file operations. Unsupported languages fall back to English.
 - Type-specific icons for packages, Word, spreadsheets, presentations, PDF, text, audio, video, images, archives, code, subtitles, e-books, and disk images.
-- No ads, no network permission, and no built-in player or NAS/SMB support.
+- No ads or NAS/SMB support. HTML preview can load external resources and the app requests network permission.
 
-Extensions are matched without case sensitivity. Recognizing EXE, RPM, or other packages does **not** mean Android can run those programs. Opening a file requires a compatible app already installed on the TV. File names are never translated or changed by language selection.
+Extensions are matched without case sensitivity. Recognizing EXE, RPM, or other packages does **not** mean Android can run those programs. Built-in preview depends on the TV decoder for audio and video; other formats can be passed to a compatible installed app. File names are never translated or changed by language selection.
 
 ## Appearance
 
@@ -43,7 +43,7 @@ Open **Appearance → Theme** for **Light, Dark, or System default**. Light is t
 - Internal storage means shared user storage. System data and other apps private directories are not generally accessible.
 - Reported capacity comes from the mounted filesystem. It is not the advertised flash capacity, and used space is not a promise of reclaimable space.
 - USB discovery uses system storage volumes and readable `/storage` mount points. Hidden vendor mounts, missing permission settings, or read-only NTFS/exFAT drivers require device-specific verification.
-- The device-named USB entry is a separate, app-only USB Host path. It does not mount the drive for the TV or other apps, and it does not support NTFS. It supports in-volume folders, copy, move, rename, delete, single-file import through TV Finder's internal browser, and export to `Download/TV Finder`. Export a file before opening it in another TV app.
+- The device-named USB entry is a separate, app-only USB Host path. It does not mount the drive for the TV or other apps, and it does not support NTFS. It supports in-volume folders, copy, move, rename, delete, single-file import through TV Finder's internal browser, and export to `Download/TV Finder`. Source builds also preview audio, video, PDF, text, formatted Markdown, and HTML inside the app. USB playback reads on demand; opening in another app first makes a temporary cached copy for compatibility. HTML may run scripts and load external resources; local resources are limited to the file's directory and children. The existing `交付/电视文件管家-0.1.0-release.apk` is not rebuilt by these source changes.
 - Direct access currently targets SCSI Bulk-Only devices with 512/4096-byte logical sectors and READ/WRITE(10) addressing. Multi-partition devices, unusual bridges, power loss, and large files need further acceptance testing. Cross-storage folder moves are not implemented.
 - The app still opens on the storage home screen. **System root** in the sidebar opens `/`, and large focusable breadcrumbs jump directly to any ancestor. This entry cannot bypass Android, SELinux, or read-only mount restrictions.
 - Existing targets are never silently overwritten or merged. Rename rejects blank names, path traversal, separators, and reserved characters.

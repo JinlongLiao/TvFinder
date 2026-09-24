@@ -51,6 +51,19 @@
     <string name="folder_empty">这个文件夹是空的</string>
     <string name="navigation_hint">确定：打开    菜单 / 长按确定：文件操作    返回：上一级</string>
     <string name="open_failed">无法打开</string>
+    <string name="preview_other_apps">用其他应用打开</string>
+    <string name="preview_no_external_app">没有已安装的应用可以打开此文件。</string>
+    <string name="preview_unsupported">电视文件管家无法预览此格式，可尝试其他应用。</string>
+    <string name="preview_failed">预览失败：%1$s</string>
+    <string name="preview_decode_failed">电视无法解码此文件，可尝试其他应用。</string>
+    <string name="preview_audio">音频播放器</string>
+    <string name="preview_play">播放</string>
+    <string name="preview_pause">暂停</string>
+    <string name="preview_previous_page">上一页</string>
+    <string name="preview_next_page">下一页</string>
+    <string name="preview_page_number">第 %1$d / %2$d 页</string>
+    <string name="preview_text_truncated">仅显示前 2 MiB 内容。</string>
+    <string name="preview_copying_for_external">正在复制临时文件，以便其他应用打开…</string>
     <string name="select_file">选择文件</string>
     <string name="select_file_hint">请用方向键选中文件，然后按菜单键或长按确定。</string>
     <string name="action_open">打开</string>
@@ -92,7 +105,7 @@
     <string name="clipboard_pending">待%1$s：%2$s  ·  进入目标文件夹后选择粘贴</string>
     <string name="capacity_summary">可用 %1$s / 总计 %2$s    已用 %3$s</string>
     <string name="volume_summary">%1$s\n%2$s\n%3$s</string>
-    <string name="open_error_hint">请确认电视已安装支持此格式的应用。\n%1$s</string>
+    <string name="open_error_hint">请检查文件是否可读、磁盘是否仍连接。\n%1$s</string>
     <string name="file_detail_summary">%1$s\n%2$s\n%3$s</string>
     <string name="delete_warning">%1$s\n\n文件夹会连同内容一起删除，无法撤销。</string>
     <string name="paste_confirmation">%1$s\n→ %2$s\n%3$s</string>
@@ -132,7 +145,7 @@
     <string name="documents_failed">无法读取文档</string>
     <string name="link_failed">无法打开链接</string>
     <string name="close">关闭</string>
-    <string name="about_summary">版本：%1$s（%2$d）\n作者：liaojinlong\n开源协议：Apache-2.0\n项目：https://github.com/JinlongLiao/TvFinder\n\n为遥控器设计的本地文件管理器。无广告，无网络权限。</string>
+    <string name="about_summary">版本：%1$s（%2$d）\n作者：liaojinlong\n开源协议：Apache-2.0\n项目：https://github.com/JinlongLiao/TvFinder\n\n为遥控器设计的本地文件管理器。无广告；HTML 预览可加载在线资源。</string>
     <string name="type_package">安装包</string>
     <string name="type_document">文档</string>
     <string name="type_spreadsheet">表格</string>

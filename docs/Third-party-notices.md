@@ -27,13 +27,14 @@ The repository bundles [FatFs R0.16](https://elm-chan.org/fsw/ff/) sources `ff.c
 | `androidx.tracing:tracing` | 1.0.0 | Apache-2.0 | [The Android Open Source Project](https://android.googlesource.com/platform/frameworks/support/) |
 | `androidx.versionedparcelable:versionedparcelable` | 1.1.1 | Apache-2.0 | [The Android Open Source Project](https://android.googlesource.com/platform/frameworks/support/) |
 | `com.google.guava:listenablefuture` | 1.0 | Apache-2.0 | [Google Inc. and contributors](https://github.com/google/guava/tree/v26.0) |
+| `org.commonmark:commonmark` | 0.29.0 | BSD-2-Clause | [Atlassian Pty Ltd and commonmark-java contributors](https://github.com/commonmark/commonmark-java); [bundled license](licenses/CommonMark-BSD-2-Clause.txt) |
 | `org.jetbrains.kotlin:kotlin-stdlib` | 1.8.22 | Apache-2.0 | [JetBrains s.r.o. and contributors](https://github.com/JetBrains/kotlin/tree/v1.8.22) |
 | `org.jetbrains.kotlin:kotlin-stdlib-common` | 1.8.22 | Apache-2.0 | [JetBrains s.r.o. and contributors](https://github.com/JetBrains/kotlin/tree/v1.8.22) |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-android` | 1.6.4 | Apache-2.0 | [JetBrains s.r.o. and contributors](https://github.com/Kotlin/kotlinx.coroutines/tree/1.6.4) |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm` | 1.6.4 | Apache-2.0 | [JetBrains s.r.o. and contributors](https://github.com/Kotlin/kotlinx.coroutines/tree/1.6.4) |
 | `org.jetbrains:annotations` | 13.0 | Apache-2.0 | [JetBrains s.r.o. and contributors](https://github.com/JetBrains/java-annotations) |
 
-AndroidX Core is a direct dependency; most others are transitive. Resolved dependencies do not imply that every class is executed. Attribution names identify the upstream projects; individual source files retain their own copyright notices.
+AndroidX Core and CommonMark are direct dependencies; most others are transitive. Resolved dependencies do not imply that every class is executed. Attribution names identify the upstream projects; individual source files retain their own copyright notices.
 
 - [AndroidX source and per-file notices](https://android.googlesource.com/platform/frameworks/support/).
 - [Kotlin upstream NOTICE](licenses/Kotlin-NOTICE.txt), retained verbatim from the wider Kotlin distribution. The APK does not bundle the Kotlin compiler.

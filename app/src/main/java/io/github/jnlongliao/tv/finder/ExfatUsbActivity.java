@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
@@ -258,7 +259,7 @@ public final class ExfatUsbActivity extends Activity {
                 currentDirectory = childPath(currentDirectory, entry.name);
                 loadCurrentDirectory();
             } else {
-                showEntryActions(entry);
+                openUsbFileEntry(childPath(currentDirectory, entry.name), entry.name);
             }
         });
         entryGridView.setOnItemLongClickListener((parent, view, position, id) -> {
@@ -320,6 +321,7 @@ public final class ExfatUsbActivity extends Activity {
         usbExecutor.execute(() -> {
             try {
                 fatFsVolume = new FatFsVolume(new UsbScsiBlockDevice(usbManager, usbDevice));
+                UsbPreviewProvider.attachUsbVolume(fatFsVolume);
                 List<FatFsVolume.DirectoryEntry> entries = fatFsVolume.listDirectoryEntries("/");
                 runOnUiThread(() -> {
                     busy = false;
@@ -380,7 +382,7 @@ public final class ExfatUsbActivity extends Activity {
             ? new String[]{getString(R.string.action_open), getString(R.string.action_copy),
             getString(R.string.action_move), getString(R.string.action_rename),
             getString(R.string.action_delete)}
-            : new String[]{getString(R.string.action_copy), getString(R.string.action_move),
+            : new String[]{getString(R.string.action_open), getString(R.string.action_copy), getString(R.string.action_move),
             getString(R.string.action_rename), getString(R.string.action_delete),
             getString(R.string.usb_export)};
         new AlertDialog.Builder(this).setTitle(entry.name).setItems(options, (dialog, which) -> {
@@ -389,7 +391,11 @@ public final class ExfatUsbActivity extends Activity {
                 loadCurrentDirectory();
                 return;
             }
-            int action = entry.directory ? which - 1 : which;
+            if (!entry.directory && which == 0) {
+                openUsbFileEntry(path, entry.name);
+                return;
+            }
+            int action = which - 1;
             if (action == 0 || action == 1) {
                 clipboardPath = path;
                 clipboardDirectory = entry.directory;
@@ -403,6 +409,28 @@ public final class ExfatUsbActivity extends Activity {
                 exportFileToTelevision(path, entry.name);
             }
         }).show();
+    }
+
+    /**
+     * 在 USB 工作线程确认文件存在后打开预览；文件正文仍由预览 URI 按需读取。
+     */
+    private void openUsbFileEntry(String path, String name) {
+        if (busy || Objects.isNull(fatFsVolume)) {
+            return;
+        }
+        busy = true;
+        showStatus(getString(R.string.files_loading));
+        usbExecutor.execute(() -> {
+            try {
+                Uri uri = UsbPreviewProvider.registerUsbFile(this, path);
+                runOnUiThread(() -> {
+                    busy = false;
+                    startActivity(FilePreviewActivity.createPreviewIntent(this, uri, name, null, true));
+                });
+            } catch (Exception exception) {
+                reportUsbFailure("open preview", path, exception);
+            }
+        });
     }
 
     /**
@@ -708,7 +736,7 @@ public final class ExfatUsbActivity extends Activity {
         }
         usbExecutor.execute(() -> {
             if (Objects.nonNull(fatFsVolume)) {
-                fatFsVolume.close();
+                UsbPreviewProvider.detachUsbVolume();
                 fatFsVolume = null;
             }
         });
